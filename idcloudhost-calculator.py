@@ -74,7 +74,7 @@ main_choice = st.radio("Pilih Kategori Produk:", ["Cloud VPS eXtreme", "Server V
 if main_choice == "Cloud VPS eXtreme":
     st.subheader("Simulasi Cloud VPS eXtreme")
 
-    # Include descriptions inside radio label text
+    # Include descriptions directly in the title text
     variant = st.radio("Pilih Varian Paket", list(CLOUD_COEFFICIENTS.keys()), horizontal=False)
 
     col1, col2, col3 = st.columns(3)
@@ -107,8 +107,12 @@ if main_choice == "Cloud VPS eXtreme":
 else:
     st.subheader("Paket Server VPS")
 
-    # Dropdown for VPS type
-    group = st.selectbox("Pilih Jenis VPS:", ["HIGH PERFORMANCE", "DEDICATED CPU", "HIGH AVAILABILITY"])
+    # (✅ FIX) Use horizontal radio buttons again for VPS type
+    group = st.radio(
+        "Pilih Jenis VPS:",
+        ["HIGH PERFORMANCE", "DEDICATED CPU", "HIGH AVAILABILITY"],
+        horizontal=True
+    )
 
     billing_cycle = st.radio("Periode Pembayaran", ["Bulanan", "Tahunan"], horizontal=True)
 
