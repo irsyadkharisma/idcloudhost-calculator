@@ -1,5 +1,8 @@
 import streamlit as st
 import json
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+from io import BytesIO
 
 # ============================================================
 # Function: Cloud VPS Price Calculation
@@ -47,37 +50,39 @@ def render_cloud_vps():
     monitoring_fee = 10_000
     vat_price = base_price * 1.11
     total_price = (base_price + monitoring_fee) * 1.11
+    unit_label = "/bulan"
 
     # ------------------------------
     # Display pricing
     # ------------------------------
     st.markdown("### 💰 Perincian Biaya Bulanan")
 
-    # Horizontal layout for 3 compact metrics
     col1, col2, col3 = st.columns(3)
     with col1:
         st.markdown(
             f"<p style='font-size:14px; margin-bottom:4px;'>Biaya Dasar</p>"
-            f"<p style='font-size:18px; font-weight:600;'>Rp {int(base_price):,}/bulan</p>",
+            f"<p style='font-size:18px; font-weight:600;'>Rp {int(base_price):,}{unit_label}</p>",
             unsafe_allow_html=True
         )
     with col2:
         st.markdown(
             f"<p style='font-size:14px; margin-bottom:4px;'>Biaya + PPN (11%)</p>"
-            f"<p style='font-size:18px; font-weight:600;'>Rp {int(vat_price):,}/bulan</p>",
+            f"<p style='font-size:18px; font-weight:600;'>Rp {int(vat_price):,}{unit_label}</p>",
             unsafe_allow_html=True
         )
     with col3:
         st.markdown(
             f"<p style='font-size:14px; margin-bottom:4px;'>Biaya + PPN + Monitoring</p>"
-            f"<p style='font-size:18px; font-weight:600;'>Rp {int(total_price):,}/bulan</p>",
+            f"<p style='font-size:18px; font-weight:600;'>Rp {int(total_price):,}{unit_label}</p>",
             unsafe_allow_html=True
         )
 
-    # Final total
+    # Final total (larger, centered)
     st.markdown(
+        f"<div style='text-align:center;'>"
         f"<p style='font-size:15px; margin-top:16px;'>💰 <b>Biaya Total / Final</b></p>"
-        f"<h2 style='margin-top:-5px;'>Rp {int(total_price):,}/bulan</h2>",
+        f"<h2 style='margin-top:-5px;'>Rp {int(total_price):,}{unit_label}</h2>"
+        f"</div>",
         unsafe_allow_html=True
     )
 
@@ -85,3 +90,42 @@ def render_cloud_vps():
         "Biaya sudah termasuk PPN 11% dan biaya monitoring wajib sebesar Rp 10.000 per bulan. "
         "Semua nilai dibulatkan ke ribuan terdekat."
     )
+
+    # ============================================================
+    # PDF EXPORT SECTION
+    # ============================================================
+    st.divider()
+    st.markdown("### 📄 Ekspor Hasil ke PDF")
+
+    if st.button("Export ke PDF"):
+        buffer = BytesIO()
+        c = canvas.Canvas(buffer, pagesize=A4)
+        width, height = A4
+
+        c.setFont("Helvetica-Bold", 14)
+        c.drawString(50, height - 50, "Laporan Perhitungan Cloud VPS eXtreme")
+
+        c.setFont("Helvetica", 11)
+        c.drawString(50, height - 80, f"Varian Paket: {variant}")
+        c.drawString(50, height - 100, f"CPU: {cpu} Core, RAM: {ram} GB, Storage: {storage} GB")
+
+        c.line(50, height - 110, width - 50, height - 110)
+
+        c.drawString(50, height - 130, f"Biaya Dasar: Rp {int(base_price):,}{unit_label}")
+        c.drawString(50, height - 150, f"Biaya + PPN (11%): Rp {int(vat_price):,}{unit_label}")
+        c.drawString(50, height - 170, f"Biaya + PPN + Monitoring: Rp {int(total_price):,}{unit_label}")
+        c.drawString(50, height - 190, f"Biaya Total / Final: Rp {int(total_price):,}{unit_label}")
+
+        c.setFont("Helvetica-Oblique", 9)
+        c.drawString(50, 60, "Laporan ini dihasilkan otomatis dari kalkulator internal IDCloudHost.")
+        c.drawString(50, 45, "Termasuk PPN 11% dan biaya monitoring wajib Rp 10.000/bulan.")
+
+        c.showPage()
+        c.save()
+
+        st.download_button(
+            label="📥 Unduh PDF",
+            data=buffer.getvalue(),
+            file_name=f"CloudVPS_{variant.replace(' ', '_')}.pdf",
+            mime="application/pdf"
+        )
