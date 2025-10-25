@@ -33,6 +33,13 @@ def calculate_cloud_vps(cpu: int, ram: int, storage: int, coef: dict) -> int:
 
 # Static Server VPS pricing data
 SERVER_VPS = {
+    "HIGH PERFORMANCE": [
+        {"Plan": "NVME 1", "CPU": 1, "RAM (GB)": 1, "Storage (GB)": 25, "Price (IDR)": 112_000},
+        {"Plan": "NVME 2", "CPU": 1, "RAM (GB)": 2, "Storage (GB)": 30, "Price (IDR)": 180_000},
+        {"Plan": "NVME 3", "CPU": 2, "RAM (GB)": 2, "Storage (GB)": 40, "Price (IDR)": 270_000},
+        {"Plan": "NVME 4", "CPU": 2, "RAM (GB)": 4, "Storage (GB)": 80, "Price (IDR)": 360_000},
+        {"Plan": "NVME 5", "CPU": 4, "RAM (GB)": 8, "Storage (GB)": 140, "Price (IDR)": 700_000},
+    ],
     "DEDICATED CPU": [
         {"Plan": "eXtreme 1", "CPU": 1, "RAM (GB)": 1, "Storage (GB)": 25, "Price (IDR)": 112_000},
         {"Plan": "eXtreme 2", "CPU": 1, "RAM (GB)": 2, "Storage (GB)": 30, "Price (IDR)": 180_000},
@@ -41,10 +48,12 @@ SERVER_VPS = {
         {"Plan": "eXtreme 5", "CPU": 4, "RAM (GB)": 8, "Storage (GB)": 140, "Price (IDR)": 700_000},
         {"Plan": "eXtreme 6", "CPU": 4, "RAM (GB)": 12, "Storage (GB)": 200, "Price (IDR)": 1_050_000},
         {"Plan": "eXtreme 7", "CPU": 8, "RAM (GB)": 16, "Storage (GB)": 250, "Price (IDR)": 1_400_000},
-        {"Plan": "eXtreme 8", "CPU": 12, "RAM (GB)": 24, "Storage (GB)": 350, "Price (IDR)": 2_100_000},
-        {"Plan": "eXtreme 9", "CPU": 16, "RAM (GB)": 32, "Storage (GB)": 400, "Price (IDR)": 3_600_000},
-        {"Plan": "eXtreme 10", "CPU": 32, "RAM (GB)": 64, "Storage (GB)": 500, "Price (IDR)": 5_500_000},
-    ]
+    ],
+    "HIGH AVAILABILITY": [
+        {"Plan": "Rocket VPS 1", "CPU": 2, "RAM (GB)": 4, "Storage (GB)": 60, "Price (IDR)": 105_000},
+        {"Plan": "Rocket VPS 2", "CPU": 4, "RAM (GB)": 4, "Storage (GB)": 80, "Price (IDR)": 145_000},
+        {"Plan": "Rocket VPS 3", "CPU": 4, "RAM (GB)": 8, "Storage (GB)": 100, "Price (IDR)": 215_000},
+    ],
 }
 
 # ============================================================
@@ -101,7 +110,8 @@ if main_choice == "Cloud VPS eXtreme":
 else:
     st.subheader("Paket Server VPS")
 
-    group = st.selectbox("Pilih Jenis VPS:", list(SERVER_VPS.keys()))
+    # Use radio instead of dropdown
+    group = st.radio("Pilih Jenis VPS:", list(SERVER_VPS.keys()), horizontal=False)
     billing_cycle = st.radio("Periode Pembayaran", ["Bulanan", "Tahunan"], horizontal=True)
 
     df = pd.DataFrame(SERVER_VPS[group])
