@@ -1,0 +1,20 @@
+{
+  "Basic Standard — Dev/mock-up server API and website": {
+    "cpuram1": 25.685,
+    "cpuram2": 51.37,
+    "storage1": 0.856,
+    "storage2": 1.712
+  },
+  "Intel eXtreme — Moderate website/API (Intel)": {
+    "cpuram1": 36.0,
+    "cpuram2": 55.0,
+    "storage1": 3.0,
+    "storage2": 4.0
+  },
+  "AMD eXtreme — Moderate website/API (AMD)": {
+    "cpuram1": 36.0,
+    "cpuram2": 59.0,
+    "storage1": 3.0,
+    "storage2": 4.0
+  }
+}
