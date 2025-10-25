@@ -20,15 +20,15 @@ def calculate_cloud_vps(cpu, ram, storage, coef):
 def render_cloud_vps():
     st.subheader("Cloud VPS eXtreme Custom")
 
-    # ==============================
-    # Load Coefficients
-    # ==============================
+    # ------------------------------
+    # Load coefficient data
+    # ------------------------------
     with open("data/cloud_vps_coeff.json") as f:
         cloud_vps_data = json.load(f)
 
-    # ==============================
-    # Variant and Spec Selection
-    # ==============================
+    # ------------------------------
+    # Package selector
+    # ------------------------------
     variant = st.radio("Pilih Varian Paket", list(cloud_vps_data.keys()), horizontal=False)
 
     col1, col2, col3 = st.columns(3)
@@ -39,21 +39,21 @@ def render_cloud_vps():
     with col3:
         storage = st.slider("Storage (GB)", 20, 500, 20, step=10)
 
-    # ==============================
-    # Pricing Calculation
-    # ==============================
+    # ------------------------------
+    # Price calculation
+    # ------------------------------
     coef = cloud_vps_data[variant]
     base_price = calculate_cloud_vps(cpu, ram, storage, coef)
     monitoring_fee = 10_000
     vat_price = base_price * 1.11
     total_price = (base_price + monitoring_fee) * 1.11
 
-    # ==============================
-    # Selected Package Display
-    # ==============================
+    # ------------------------------
+    # Display pricing
+    # ------------------------------
     st.markdown("### 💰 Perincian Biaya Bulanan")
 
-    # Horizontal layout: 3 compact metrics
+    # Horizontal layout for 3 compact metrics
     col1, col2, col3 = st.columns(3)
     with col1:
         st.markdown(
@@ -64,20 +64,20 @@ def render_cloud_vps():
     with col2:
         st.markdown(
             f"<p style='font-size:14px; margin-bottom:4px;'>Biaya + PPN (11%)</p>"
-            f"<p style='font-size:18px; font-weight:600;'>Rp {int(base_price * 1.11):,}/bulan</p>",
+            f"<p style='font-size:18px; font-weight:600;'>Rp {int(vat_price):,}/bulan</p>",
             unsafe_allow_html=True
         )
     with col3:
         st.markdown(
             f"<p style='font-size:14px; margin-bottom:4px;'>Biaya + PPN + Monitoring</p>"
-            f"<p style='font-size:18px; font-weight:600;'>Rp {int((base_price + 10_000) * 1.11):,}/bulan</p>",
+            f"<p style='font-size:18px; font-weight:600;'>Rp {int(total_price):,}/bulan</p>",
             unsafe_allow_html=True
         )
 
-    # Final total (larger, bold, below)
+    # Final total
     st.markdown(
         f"<p style='font-size:15px; margin-top:16px;'>💰 <b>Biaya Total / Final</b></p>"
-        f"<h2 style='margin-top:-5px;'>Rp {int((base_price + 10_000) * 1.11):,}/bulan</h2>",
+        f"<h2 style='margin-top:-5px;'>Rp {int(total_price):,}/bulan</h2>",
         unsafe_allow_html=True
     )
 
