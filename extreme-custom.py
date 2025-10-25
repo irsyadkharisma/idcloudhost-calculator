@@ -34,3 +34,4 @@ def render_cloud_vps():
     st.metric("Harga Dasar", f"Rp {int(base_price):,}/bulan")
     st.metric("Harga + PPN 11%", f"Rp {int(base_price * 1.11):,}/bulan")
     st.metric("Harga Total (PPN + Monitoring)", f"Rp {int(total_price):,}/bulan")
+    

@@ -12,3 +12,4 @@ if mode == "Cloud VPS eXtreme":
     render_cloud_vps()
 else:
     render_server_vps()
+    
