@@ -79,17 +79,15 @@ if main_choice == "Cloud VPS eXtreme":
         storage = st.slider("Storage (GB)", 20, 500, 20, step=10)
 
     coef = CLOUD_COEFFICIENTS[variant]
-
     base_price = calculate_cloud_vps(cpu, ram, storage, coef)
     monitoring_fee = 10_000  # per month
     subtotal = base_price + monitoring_fee
     total_price = subtotal * 1.11
 
     st.markdown("### 💰 Perincian Biaya Bulanan")
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Harga Dasar", f"Rp {int(base_price):,}")
-    col2.metric("Harga + PPN 11%", f"Rp {int(base_price * 1.11):,}")
-    col3.metric("Harga Total (PPN + Monitoring)", f"Rp {int(total_price):,}")
+    st.metric("Harga Dasar", f"Rp {int(base_price):,}/bulan")
+    st.metric("Harga + PPN 11%", f"Rp {int(base_price * 1.11):,}/bulan")
+    st.metric("Harga Total (PPN + Monitoring)", f"Rp {int(total_price):,}/bulan")
 
     st.caption(
         "Harga sudah termasuk PPN 11% dan biaya monitoring wajib sebesar Rp 10.000 per bulan. "
@@ -102,7 +100,6 @@ if main_choice == "Cloud VPS eXtreme":
 else:
     st.subheader("Paket Server VPS")
 
-    # Use radio instead of dropdown
     group = st.radio("Pilih Jenis VPS:", list(SERVER_VPS.keys()), horizontal=False)
     billing_cycle = st.radio("Periode Pembayaran", ["Bulanan", "Tahunan"], horizontal=True)
 
@@ -117,22 +114,22 @@ else:
         df["Harga + PPN (11%)"] *= 12
         df["Harga Total"] *= 12
 
-    # Add selection column
-    df_display = df.copy()
-    selected_index = st.radio(
-        "Pilih Paket:",
-        range(len(df_display)),
-        format_func=lambda i: df_display.loc[i, "Plan"],
-        horizontal=True if len(df_display) <= 5 else False,
-    )
-
-    st.dataframe(
-        df_display[["Plan", "CPU", "RAM (GB)", "Storage (GB)", "Harga Dasar", "Harga + PPN (11%)", "Harga Total"]],
+    st.markdown("### Pilih Paket dengan Klik Baris di Tabel:")
+    selected_plan = st.data_editor(
+        df,
         hide_index=True,
+        column_config={
+            "Plan": st.column_config.Column(label="Pilih Paket", required=True),
+        },
+        disabled=["CPU", "RAM (GB)", "Storage (GB)", "Price (IDR)", "Harga Dasar", "Harga + PPN (11%)", "Harga Total"],
         use_container_width=True,
+        key="server_table",
     )
 
-    row = df_display.iloc[selected_index]
+    # Use selection logic from session state (simulate row click)
+    selected_idx = st.number_input("Nomor baris paket (0 = pertama)", min_value=0, max_value=len(df) - 1, step=1)
+    row = df.iloc[selected_idx]
+
     base = row["Harga Dasar"]
     vat = row["Harga + PPN (11%)"]
     total = row["Harga Total"]
@@ -142,11 +139,9 @@ else:
     st.divider()
     st.markdown("### 💼 Paket Terpilih")
     st.markdown(f"## **{plan_name}**")
-
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Harga Dasar", f"Rp {int(base):,} {unit_label}")
-    col2.metric("Harga + PPN (11%)", f"Rp {int(vat):,} {unit_label}")
-    col3.metric("🧾 Total Harga (termasuk Monitoring)", f"Rp {int(total):,} {unit_label}")
+    st.metric("Harga Dasar", f"Rp {int(base):,} {unit_label}")
+    st.metric("Harga + PPN (11%)", f"Rp {int(vat):,} {unit_label}")
+    st.metric("🧾 Total Harga (termasuk Monitoring)", f"Rp {int(total):,} {unit_label}")
 
     st.caption(
         f"Harga sudah termasuk PPN 11% dan biaya monitoring wajib Rp 10.000 per bulan "
