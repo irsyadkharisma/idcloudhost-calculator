@@ -1,5 +1,8 @@
 import streamlit as st
 import pandas as pd
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+from io import BytesIO
 
 # ============================================================
 # Render Function: Server VPS Page
@@ -103,3 +106,43 @@ def render_server_vps():
     st.caption(
         "Biaya sudah termasuk PPN 11% dan biaya monitoring wajib Rp 10.000/bulan atau Rp 120.000/tahun."
     )
+
+    # ============================================================
+    # PDF EXPORT SECTION
+    # ============================================================
+    st.divider()
+    st.markdown("### 📄 Ekspor Hasil ke PDF")
+
+    if st.button("Export ke PDF"):
+        buffer = BytesIO()
+        c = canvas.Canvas(buffer, pagesize=A4)
+        width, height = A4
+
+        c.setFont("Helvetica-Bold", 14)
+        c.drawString(50, height - 50, "Laporan Perhitungan Paket Server VPS")
+
+        c.setFont("Helvetica", 11)
+        c.drawString(50, height - 80, f"Jenis VPS: {group}")
+        c.drawString(50, height - 100, f"Periode: {billing}")
+        c.drawString(50, height - 120, f"Paket Terpilih: {plan}")
+
+        c.line(50, height - 130, width - 50, height - 130)
+
+        c.drawString(50, height - 150, f"Biaya Dasar: Rp {int(row['Biaya Dasar']):,} {unit_label}")
+        c.drawString(50, height - 170, f"Biaya + PPN (11%): Rp {int(row['Biaya + PPN (11%)']):,} {unit_label}")
+        c.drawString(50, height - 190, f"Biaya + PPN + Monitoring: Rp {int(row['Biaya + PPN + Monitoring']):,} {unit_label}")
+        c.drawString(50, height - 210, f"Biaya Total / Final: Rp {int(row['Biaya Total / Final']):,} {unit_label}")
+
+        c.setFont("Helvetica-Oblique", 9)
+        c.drawString(50, 60, "Laporan ini dihasilkan otomatis dari kalkulator internal IDCloudHost.")
+        c.drawString(50, 45, "Termasuk PPN 11% dan biaya monitoring wajib.")
+
+        c.showPage()
+        c.save()
+
+        st.download_button(
+            label="📥 Unduh PDF",
+            data=buffer.getvalue(),
+            file_name=f"Paket_{plan.replace(' ', '_')}.pdf",
+            mime="application/pdf"
+        )
