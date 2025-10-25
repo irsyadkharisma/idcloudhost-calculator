@@ -80,19 +80,11 @@ if main_choice == "Cloud VPS eXtreme":
 
     coef = CLOUD_COEFFICIENTS[variant]
 
-    # Base price
     base_price = calculate_cloud_vps(cpu, ram, storage, coef)
-
-    # Mandatory monitoring
-    monitoring_fee = 10_000
+    monitoring_fee = 10_000  # per month
     subtotal = base_price + monitoring_fee
-
-    # Add VAT 11%
     total_price = subtotal * 1.11
 
-    # --------------------------------------------------------
-    # Display results
-    # --------------------------------------------------------
     st.markdown("### 💰 Perincian Biaya Bulanan")
     col1, col2, col3 = st.columns(3)
     col1.metric("Harga Dasar", f"Rp {int(base_price):,}")
@@ -115,38 +107,46 @@ else:
     billing_cycle = st.radio("Periode Pembayaran", ["Bulanan", "Tahunan"], horizontal=True)
 
     df = pd.DataFrame(SERVER_VPS[group])
-
-    # Base prices
     df["Harga Dasar"] = df["Price (IDR)"]
-    # Add VAT
     df["Harga + PPN (11%)"] = df["Harga Dasar"] * 1.11
-    # Add mandatory monitoring (Rp10k / month)
     monitoring_cost = 10_000 * (12 if billing_cycle == "Tahunan" else 1)
     df["Harga Total"] = df["Harga + PPN (11%)"] + monitoring_cost
 
-    # Adjust for yearly cycle
     if billing_cycle == "Tahunan":
         df["Harga Dasar"] *= 12
         df["Harga + PPN (11%)"] *= 12
         df["Harga Total"] *= 12
 
-    df_display = df[["Plan", "CPU", "RAM (GB)", "Storage (GB)", "Harga Dasar", "Harga + PPN (11%)", "Harga Total"]]
-    st.dataframe(df_display, hide_index=True, use_container_width=True)
+    # Add selection column
+    df_display = df.copy()
+    selected_index = st.radio(
+        "Pilih Paket:",
+        range(len(df_display)),
+        format_func=lambda i: df_display.loc[i, "Plan"],
+        horizontal=True if len(df_display) <= 5 else False,
+    )
 
-    selected_plan = st.selectbox("Pilih Paket untuk Perhitungan:", df["Plan"].tolist())
-    row = df[df["Plan"] == selected_plan].iloc[0]
+    st.dataframe(
+        df_display[["Plan", "CPU", "RAM (GB)", "Storage (GB)", "Harga Dasar", "Harga + PPN (11%)", "Harga Total"]],
+        hide_index=True,
+        use_container_width=True,
+    )
 
+    row = df_display.iloc[selected_index]
     base = row["Harga Dasar"]
     vat = row["Harga + PPN (11%)"]
     total = row["Harga Total"]
-
+    plan_name = row["Plan"]
     unit_label = "/bulan" if billing_cycle == "Bulanan" else "/tahun"
 
     st.divider()
-    st.metric("💼 Paket Terpilih", selected_plan)
-    st.metric("Harga Dasar", f"Rp {int(base):,} {unit_label}")
-    st.metric("Harga + PPN (11%)", f"Rp {int(vat):,} {unit_label}")
-    st.metric("🧾 Total Harga (termasuk Monitoring)", f"Rp {int(total):,} {unit_label}")
+    st.markdown("### 💼 Paket Terpilih")
+    st.markdown(f"## **{plan_name}**")
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Harga Dasar", f"Rp {int(base):,} {unit_label}")
+    col2.metric("Harga + PPN (11%)", f"Rp {int(vat):,} {unit_label}")
+    col3.metric("🧾 Total Harga (termasuk Monitoring)", f"Rp {int(total):,} {unit_label}")
 
     st.caption(
         f"Harga sudah termasuk PPN 11% dan biaya monitoring wajib Rp 10.000 per bulan "
