@@ -103,7 +103,7 @@ def render_cloud_vps():
         width, height = A4
 
         c.setFont("Helvetica-Bold", 14)
-        c.drawString(50, height - 50, "Laporan Perhitungan Cloud VPS eXtreme")
+        c.drawString(50, height - 50, "Perhitungan Cloud VPS eXtreme Custom")
 
         c.setFont("Helvetica", 11)
         c.drawString(50, height - 80, f"Varian Paket: {variant}")

@@ -119,7 +119,7 @@ def render_server_vps():
         width, height = A4
 
         c.setFont("Helvetica-Bold", 14)
-        c.drawString(50, height - 50, "Laporan Perhitungan Paket Server VPS")
+        c.drawString(50, height - 50, "Perhitungan Paket Server VPS")
 
         c.setFont("Helvetica", 11)
         c.drawString(50, height - 80, f"Jenis VPS: {group}")
