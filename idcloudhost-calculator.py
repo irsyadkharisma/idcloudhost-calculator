@@ -1,6 +1,6 @@
 import streamlit as st
-from extreme-custom import render_cloud_vps
-from paket-server import render_server_vps
+from extreme_custom import render_cloud_vps
+from paket_server import render_server_vps
 
 st.set_page_config(page_title="Kalkulator dan Paket Server", page_icon="💰", layout="centered")
 st.title("💰 Paket server untuk produk internal")
