@@ -14,16 +14,15 @@ st.caption("Digunakan sebagai basis perhitungan biaya acuan awal")
 
 # Cloud VPS coefficients (from IDCloudHost JS)
 CLOUD_COEFFICIENTS = {
-    "Basic Standard": {"cpuram1": 25.685, "cpuram2": 51.37, "storage1": 0.856, "storage2": 1.712},
-    "Intel eXtreme": {"cpuram1": 36.0, "cpuram2": 55.0, "storage1": 3.0, "storage2": 4.0},
-    "AMD eXtreme": {"cpuram1": 36.0, "cpuram2": 59.0, "storage1": 3.0, "storage2": 4.0},
-}
-
-# Human-readable descriptions for Cloud VPS
-CLOUD_DESCRIPTIONS = {
-    "Basic Standard": "Dev/mock-up server API and website",
-    "Intel eXtreme": "Moderate website/API (Intel)",
-    "AMD eXtreme": "Moderate website/API (AMD)"
+    "Basic Standard — Dev/mock-up server API and website": {
+        "cpuram1": 25.685, "cpuram2": 51.37, "storage1": 0.856, "storage2": 1.712
+    },
+    "Intel eXtreme — Moderate website/API (Intel)": {
+        "cpuram1": 36.0, "cpuram2": 55.0, "storage1": 3.0, "storage2": 4.0
+    },
+    "AMD eXtreme — Moderate website/API (AMD)": {
+        "cpuram1": 36.0, "cpuram2": 59.0, "storage1": 3.0, "storage2": 4.0
+    },
 }
 
 
@@ -75,8 +74,8 @@ main_choice = st.radio("Pilih Kategori Produk:", ["Cloud VPS eXtreme", "Server V
 if main_choice == "Cloud VPS eXtreme":
     st.subheader("Simulasi Cloud VPS eXtreme")
 
-    variant = st.radio("Pilih Varian Paket", list(CLOUD_COEFFICIENTS.keys()), horizontal=True)
-    st.caption(CLOUD_DESCRIPTIONS[variant])  # add descriptive note below radio
+    # Include descriptions inside radio label text
+    variant = st.radio("Pilih Varian Paket", list(CLOUD_COEFFICIENTS.keys()), horizontal=False)
 
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -108,10 +107,9 @@ if main_choice == "Cloud VPS eXtreme":
 else:
     st.subheader("Paket Server VPS")
 
-    # (1) VPS Type dropdown (fixed text)
+    # Dropdown for VPS type
     group = st.selectbox("Pilih Jenis VPS:", ["HIGH PERFORMANCE", "DEDICATED CPU", "HIGH AVAILABILITY"])
 
-    # (2) Billing period radio
     billing_cycle = st.radio("Periode Pembayaran", ["Bulanan", "Tahunan"], horizontal=True)
 
     df = pd.DataFrame(SERVER_VPS[group])
@@ -125,14 +123,12 @@ else:
         df["Harga + PPN (11%)"] *= 12
         df["Harga Total"] *= 12
 
-    # Display data table
     st.dataframe(
         df[["Plan", "CPU", "RAM (GB)", "Storage (GB)", "Harga Dasar", "Harga + PPN (11%)", "Harga Total"]],
         hide_index=True,
         use_container_width=True,
     )
 
-    # (2) Dropdown selector for plan instead of number input
     selected_plan = st.selectbox("Pilih Paket untuk Perhitungan:", df["Plan"].tolist())
     row = df[df["Plan"] == selected_plan].iloc[0]
 
@@ -146,7 +142,6 @@ else:
     st.markdown("### 💼 Paket Terpilih")
     st.markdown(f"## **{plan_name}**")
 
-    # (3) Vertical layout for result summary
     st.metric("Harga Dasar", f"Rp {int(base):,} {unit_label}")
     st.metric("Harga + PPN (11%)", f"Rp {int(vat):,} {unit_label}")
     st.metric("🧾 Total Harga (termasuk Monitoring)", f"Rp {int(total):,} {unit_label}")
