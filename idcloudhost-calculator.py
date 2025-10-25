@@ -19,6 +19,13 @@ CLOUD_COEFFICIENTS = {
     "AMD eXtreme": {"cpuram1": 36.0, "cpuram2": 59.0, "storage1": 3.0, "storage2": 4.0},
 }
 
+# Human-readable descriptions for Cloud VPS
+CLOUD_DESCRIPTIONS = {
+    "Basic Standard": "Dev/mock-up server API and website",
+    "Intel eXtreme": "Moderate website/API (Intel)",
+    "AMD eXtreme": "Moderate website/API (AMD)"
+}
+
 
 def calculate_cloud_vps(cpu: int, ram: int, storage: int, coef: dict) -> int:
     """Replicate IDCloudHost Cloud VPS pricing logic (monthly base price)."""
@@ -69,6 +76,7 @@ if main_choice == "Cloud VPS eXtreme":
     st.subheader("Simulasi Cloud VPS eXtreme")
 
     variant = st.radio("Pilih Varian Paket", list(CLOUD_COEFFICIENTS.keys()), horizontal=True)
+    st.caption(CLOUD_DESCRIPTIONS[variant])  # add descriptive note below radio
 
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -100,7 +108,10 @@ if main_choice == "Cloud VPS eXtreme":
 else:
     st.subheader("Paket Server VPS")
 
-    group = st.radio("Pilih Jenis VPS:", list(SERVER_VPS.keys()), horizontal=False)
+    # (1) VPS Type dropdown (fixed text)
+    group = st.selectbox("Pilih Jenis VPS:", ["HIGH PERFORMANCE", "DEDICATED CPU", "HIGH AVAILABILITY"])
+
+    # (2) Billing period radio
     billing_cycle = st.radio("Periode Pembayaran", ["Bulanan", "Tahunan"], horizontal=True)
 
     df = pd.DataFrame(SERVER_VPS[group])
@@ -114,21 +125,16 @@ else:
         df["Harga + PPN (11%)"] *= 12
         df["Harga Total"] *= 12
 
-    st.markdown("### Pilih Paket dengan Klik Baris di Tabel:")
-    selected_plan = st.data_editor(
-        df,
+    # Display data table
+    st.dataframe(
+        df[["Plan", "CPU", "RAM (GB)", "Storage (GB)", "Harga Dasar", "Harga + PPN (11%)", "Harga Total"]],
         hide_index=True,
-        column_config={
-            "Plan": st.column_config.Column(label="Pilih Paket", required=True),
-        },
-        disabled=["CPU", "RAM (GB)", "Storage (GB)", "Price (IDR)", "Harga Dasar", "Harga + PPN (11%)", "Harga Total"],
         use_container_width=True,
-        key="server_table",
     )
 
-    # Use selection logic from session state (simulate row click)
-    selected_idx = st.number_input("Nomor baris paket (0 = pertama)", min_value=0, max_value=len(df) - 1, step=1)
-    row = df.iloc[selected_idx]
+    # (2) Dropdown selector for plan instead of number input
+    selected_plan = st.selectbox("Pilih Paket untuk Perhitungan:", df["Plan"].tolist())
+    row = df[df["Plan"] == selected_plan].iloc[0]
 
     base = row["Harga Dasar"]
     vat = row["Harga + PPN (11%)"]
@@ -139,6 +145,8 @@ else:
     st.divider()
     st.markdown("### 💼 Paket Terpilih")
     st.markdown(f"## **{plan_name}**")
+
+    # (3) Vertical layout for result summary
     st.metric("Harga Dasar", f"Rp {int(base):,} {unit_label}")
     st.metric("Harga + PPN (11%)", f"Rp {int(vat):,} {unit_label}")
     st.metric("🧾 Total Harga (termasuk Monitoring)", f"Rp {int(total):,} {unit_label}")
