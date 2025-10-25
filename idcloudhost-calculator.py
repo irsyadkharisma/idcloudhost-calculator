@@ -4,15 +4,15 @@ import pandas as pd
 # ------------------------------------------------------------
 # PAGE CONFIG
 # ------------------------------------------------------------
-st.set_page_config(page_title="Kalkulator dan Paket Server", page_icon="💰", layout="centered")
-st.title("💰 Paket server untuk produk internal")
-st.caption("Digunakan sebagai basis perhitungan biaya acuan awal")
+st.set_page_config(page_title="IDCloudHost Full Pricing Calculator", page_icon="💰", layout="centered")
+st.title("💰 IDCloudHost Pricing Calculator (Cloud VPS & Server VPS)")
+st.caption("Dynamic pricing calculator for Cloud VPS eXtreme and Server VPS packages with 11% VAT and optional monitoring add-on.")
 
 # ============================================================
 # SECTION 1: DATA & FORMULAS
 # ============================================================
 
-# Cloud VPS coefficients from IDCloudHost's official JS
+# Cloud VPS coefficients (from idcloudhost JS)
 CLOUD_COEFFICIENTS = {
     "Basic Standard": {"cpuram1": 25.685, "cpuram2": 51.37, "storage1": 0.856, "storage2": 1.712},
     "Intel eXtreme": {"cpuram1": 36.0, "cpuram2": 55.0, "storage1": 3.0, "storage2": 4.0},
@@ -21,7 +21,7 @@ CLOUD_COEFFICIENTS = {
 
 
 def calculate_cloud_vps(cpu: int, ram: int, storage: int, coef: dict) -> dict:
-    """Replicate the JS pricing formula for Cloud VPS."""
+    """Replicate the official JS pricing formula for Cloud VPS."""
     per_hour = (
         (cpu * coef["cpuram1"] if cpu <= 2 else cpu * coef["cpuram2"])
         + (ram * coef["cpuram1"] if ram <= 2 else ram * coef["cpuram2"])
@@ -32,7 +32,7 @@ def calculate_cloud_vps(cpu: int, ram: int, storage: int, coef: dict) -> dict:
     return {"per_hour": round(per_hour), "per_month": int(per_month_rounded)}
 
 
-# Server VPS static pricing data
+# Server VPS pricing data
 SERVER_VPS = {
     "HIGH PERFORMANCE": [
         {"Plan": "NVME 1", "CPU": 1, "RAM (GB)": 1, "Storage (GB)": 25, "Price (IDR)": 112_000},
@@ -69,75 +69,85 @@ SERVER_VPS = {
     ],
 }
 
-
 # ============================================================
 # SECTION 2: MAIN UI FLOW
 # ============================================================
 
-main_choice = st.radio("Select Product Category:", ["Cloud VPS eXtreme", "Server VPS"], horizontal=True)
+main_choice = st.radio("Pilih Kategori Produk:", ["Cloud VPS eXtreme", "Server VPS"], horizontal=True)
 
 # ============================================================
 # CLOUD VPS MODE
 # ============================================================
 if main_choice == "Cloud VPS eXtreme":
-    st.subheader("Cloud VPS eXtreme Simulator")
+    st.subheader("Simulasi Cloud VPS eXtreme")
 
-    variant = st.radio("Choose Plan Variant", list(CLOUD_COEFFICIENTS.keys()), horizontal=True)
+    variant = st.radio("Pilih Varian Paket", list(CLOUD_COEFFICIENTS.keys()), horizontal=True)
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        cpu = st.slider("CPU (Cores)", 1, 10, 2)
+        cpu = st.slider("CPU (Core)", 1, 10, 2)
     with col2:
         ram = st.slider("RAM (GB)", 1, 10, 2)
     with col3:
         storage = st.slider("Storage (GB)", 20, 500, 20, step=10)
 
-    add_monitoring = st.checkbox("Add 5% Monitoring Add-on", value=False)
+    add_monitoring = st.checkbox("Tambahkan Monitoring (Rp 100.000 / bulan)", value=False)
 
-    # compute
     coef = CLOUD_COEFFICIENTS[variant]
     result = calculate_cloud_vps(cpu, ram, storage, coef)
     total_price = result["per_month"]
 
-    # apply monitoring
+    # add monitoring fee
     if add_monitoring:
-        total_price *= 1.05
+        total_price += 100_000
 
-    # mandatory VAT
+    # apply VAT
     total_price *= 1.11
 
-    st.metric("💰 Monthly Cost (IDR)", f"{int(total_price):,}", delta=f"{result['per_hour']:,} / hour (before tax)")
-    st.caption("Includes 11% VAT. Add-on Monitoring increases cost by 5%.")
-
-    st.divider()
-    st.markdown(
-        f"""
-        **Formula Used (from IDCloudHost JS)**  
-        `price = (cpu×coef + ram×coef + storage×coef) × 730 hrs × 1.11 VAT × (1.05 if monitoring)`
-        \nCoefficients for *{variant}*:
-        ```
-        {CLOUD_COEFFICIENTS[variant]}
-        ```
-        """
-    )
+    st.metric("💰 Perkiraan Biaya Bulanan (IDR)", f"Rp {int(total_price):,} / bulan", delta=f"{result['per_hour']:,} / jam (sebelum PPN)")
+    st.caption("Harga sudah termasuk PPN 11%. Monitoring menambah biaya Rp 100.000 per bulan.")
 
 # ============================================================
 # SERVER VPS MODE
 # ============================================================
 else:
-    st.subheader("Server VPS Packages")
-    group = st.selectbox("Choose VPS Type:", list(SERVER_VPS.keys()))
+    st.subheader("Paket Server VPS")
 
-    add_monitoring = st.checkbox("Add 5% Monitoring Add-on", value=False)
+    group = st.selectbox("Pilih Jenis VPS:", list(SERVER_VPS.keys()))
+    billing_cycle = st.radio("Periode Pembayaran", ["Bulanan", "Tahunan"], horizontal=True)
+    add_monitoring = st.checkbox("Tambahkan Monitoring (Rp 100.000 / bulan)", value=False)
 
     df = pd.DataFrame(SERVER_VPS[group])
-    df["Price (IDR)"] = df["Price (IDR)"].apply(lambda x: int(x * (1.05 if add_monitoring else 1.0) * 1.11))
+    df["Base (with VAT)"] = df["Price (IDR)"] * 1.11
 
-    st.dataframe(df, hide_index=True, use_container_width=True)
+    if billing_cycle == "Tahunan":
+        df["Base (with VAT)"] *= 12
 
-    col1, col2 = st.columns(2)
-    col1.metric("Lowest Plan", f"Rp {df['Price (IDR)'].min():,}")
-    col2.metric("Highest Plan", f"Rp {df['Price (IDR)'].max():,}")
+    view_df = df[["Plan", "CPU", "RAM (GB)", "Storage (GB)", "Base (with VAT)"]]
+    view_df.rename(columns={"Base (with VAT)": "Harga (IDR)"}, inplace=True)
 
-    st.caption("All prices include 11% VAT. Monitoring add-on adds 5%.")
+    st.dataframe(view_df, hide_index=True, use_container_width=True)
 
+    selected_plan = st.selectbox("Pilih Paket untuk Perhitungan:", view_df["Plan"].tolist())
+    selected_row = view_df[view_df["Plan"] == selected_plan].iloc[0]
+    base_price = selected_row["Harga (IDR)"]
+
+    # monitoring
+    monitoring_cost = 0
+    if add_monitoring:
+        monitoring_cost = 100_000 * (12 if billing_cycle == "Tahunan" else 1)
+
+    total = base_price + monitoring_cost
+    unit_label = "/bulan" if billing_cycle == "Bulanan" else "/tahun"
+
+    st.divider()
+    st.metric("💼 Paket Terpilih", selected_plan)
+    st.metric("Harga Dasar (sudah PPN 11%)", f"Rp {int(base_price):,} {unit_label}")
+    if add_monitoring:
+        st.metric("Biaya Monitoring", f"Rp {int(monitoring_cost):,} {unit_label}")
+    st.metric("🧾 Total Biaya", f"Rp {int(total):,} {unit_label}")
+
+    st.caption(
+        f"Harga sudah termasuk PPN 11%. Monitoring menambah biaya Rp 100.000 per bulan "
+        f"({'× 12 = Rp 1.200.000 / tahun' if billing_cycle == 'Tahunan' else 'per bulan'})."
+    )
