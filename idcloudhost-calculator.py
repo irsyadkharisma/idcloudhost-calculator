@@ -140,3 +140,4 @@ else:
     col2.metric("Highest Plan", f"Rp {df['Price (IDR)'].max():,}")
 
     st.caption("All prices include 11% VAT. Monitoring add-on adds 5%.")
+
