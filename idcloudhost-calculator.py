@@ -24,7 +24,7 @@ render_server_recommendation()
 # --- VPS Calculator Section ---
 st.subheader("Kalkulator VPS dan Paket Server")
 
-mode = st.radio("Pilih Kategori Produk:", ["Cloud VPS eXtreme", "Server VPS"], horizontal=True)
+mode = st.radio("Pilih Kategori Produk:", ["Cloud VPS eXtreme", "Paket Server VPS"], horizontal=True)
 
 if mode == "Cloud VPS eXtreme":
     render_cloud_vps()

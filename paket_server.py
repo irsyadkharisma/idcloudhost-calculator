@@ -8,8 +8,6 @@ from io import BytesIO
 # Render Function: Server VPS Page
 # ============================================================
 def render_server_vps():
-    st.subheader("Paket Server VPS")
-
     # ------------------------------
     # Load data
     # ------------------------------
