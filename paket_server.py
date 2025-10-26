@@ -16,7 +16,7 @@ def render_server_vps():
     # ------------------------------
     # User selection
     # ------------------------------
-    st.markdown("#### Pilih Jenis VPS:")
+    st.markdown("### Pilih Jenis VPS:")
     group = st.radio(
         " ",
         sorted(df["Group"].unique()),
