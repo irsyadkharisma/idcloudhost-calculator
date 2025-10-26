@@ -18,12 +18,28 @@ def render_server_vps():
     # ------------------------------
     # User selection
     # ------------------------------
+    st.markdown("#### Pilih Jenis VPS:")
     group = st.radio(
-        "Pilih Jenis VPS:",
+        " ",
         sorted(df["Group"].unique()),
         horizontal=True
     )
 
+    # Descriptions based on selection
+    descriptions = {
+        "DEDICATED CPU": "💡 Cocok untuk small, medium, dan moderate web/API.",
+        "HIGH AVAILABILITY": "💡 Untuk workload yang membutuhkan uptime tinggi dan failover otomatis.",
+        "HIGH PERFORMANCE": "💡 Cocok untuk high-load web/API atau sistem dengan intensitas CPU tinggi."
+    }
+
+    # Display relevant description if exists
+    desc = descriptions.get(group.upper())
+    if desc:
+        st.caption(desc)
+
+    # ------------------------------
+    # Billing period
+    # ------------------------------
     billing = st.radio(
         "Periode Pembayaran",
         ["Bulanan", "Tahunan"],
