@@ -34,6 +34,9 @@ def render_cloud_vps():
     # ------------------------------
     variant = st.radio("Pilih Varian Paket", list(cloud_vps_data.keys()), horizontal=False)
 
+    # Billing period
+    billing = st.radio("Periode Pembayaran", ["Bulanan", "Tahunan"], horizontal=True)
+
     col1, col2, col3 = st.columns(3)
     with col1:
         cpu = st.slider("CPU (Core)", 2, 10, 2)
@@ -47,15 +50,23 @@ def render_cloud_vps():
     # ------------------------------
     coef = cloud_vps_data[variant]
     base_price = calculate_cloud_vps(cpu, ram, storage, coef)
-    monitoring_fee = 10_000
+
+    # Adjust for billing period
+    if billing == "Tahunan":
+        base_price *= 12
+        monitoring_fee = 120_000
+        unit_label = "/tahun"
+    else:
+        monitoring_fee = 10_000
+        unit_label = "/bulan"
+
     vat_price = base_price * 1.11
     total_price = (base_price + monitoring_fee) * 1.11
-    unit_label = "/bulan"
 
     # ------------------------------
     # Display pricing
     # ------------------------------
-    st.markdown("### 💰 Perincian Biaya Bulanan")
+    st.markdown("### 💰 Perincian Biaya " + ("Tahunan" if billing == "Tahunan" else "Bulanan"))
 
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -77,7 +88,6 @@ def render_cloud_vps():
             unsafe_allow_html=True
         )
 
-    # Final total (larger, centered)
     st.markdown(
         f"<div style='text-align:center;'>"
         f"<p style='font-size:15px; margin-top:16px;'>💰 <b>Biaya Total / Final</b></p>"
@@ -87,12 +97,12 @@ def render_cloud_vps():
     )
 
     st.caption(
-        "Biaya sudah termasuk PPN 11% dan biaya monitoring wajib sebesar Rp 10.000 per bulan. "
-        "Semua nilai dibulatkan ke ribuan terdekat."
+        f"Biaya sudah termasuk PPN 11% dan biaya monitoring wajib sebesar Rp {monitoring_fee:,} "
+        f"per {'tahun' if billing == 'Tahunan' else 'bulan'}. Semua nilai dibulatkan ke ribuan terdekat."
     )
 
     # ============================================================
-    # PDF EXPORT SECTION
+    # PDF EXPORT SECTION (unchanged)
     # ============================================================
     st.divider()
     st.markdown("### 📄 Ekspor Hasil ke PDF")
@@ -107,18 +117,19 @@ def render_cloud_vps():
 
         c.setFont("Helvetica", 11)
         c.drawString(50, height - 80, f"Varian Paket: {variant}")
-        c.drawString(50, height - 100, f"CPU: {cpu} Core, RAM: {ram} GB, Storage: {storage} GB")
+        c.drawString(50, height - 100, f"Periode: {billing}")
+        c.drawString(50, height - 120, f"CPU: {cpu} Core, RAM: {ram} GB, Storage: {storage} GB")
 
-        c.line(50, height - 110, width - 50, height - 110)
+        c.line(50, height - 130, width - 50, height - 130)
 
-        c.drawString(50, height - 130, f"Biaya Dasar: Rp {int(base_price):,}{unit_label}")
-        c.drawString(50, height - 150, f"Biaya + PPN (11%): Rp {int(vat_price):,}{unit_label}")
-        c.drawString(50, height - 170, f"Biaya + PPN + Monitoring: Rp {int(total_price):,}{unit_label}")
-        c.drawString(50, height - 190, f"Biaya Total / Final: Rp {int(total_price):,}{unit_label}")
+        c.drawString(50, height - 150, f"Biaya Dasar: Rp {int(base_price):,}{unit_label}")
+        c.drawString(50, height - 170, f"Biaya + PPN (11%): Rp {int(vat_price):,}{unit_label}")
+        c.drawString(50, height - 190, f"Biaya + PPN + Monitoring: Rp {int(total_price):,}{unit_label}")
+        c.drawString(50, height - 210, f"Biaya Total / Final: Rp {int(total_price):,}{unit_label}")
 
         c.setFont("Helvetica-Oblique", 9)
         c.drawString(50, 60, "Laporan ini dihasilkan otomatis dari kalkulator internal IDCloudHost.")
-        c.drawString(50, 45, "Termasuk PPN 11% dan biaya monitoring wajib Rp 10.000/bulan.")
+        c.drawString(50, 45, "Termasuk PPN 11% dan biaya monitoring wajib.")
 
         c.showPage()
         c.save()
