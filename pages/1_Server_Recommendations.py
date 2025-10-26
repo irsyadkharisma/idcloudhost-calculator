@@ -1,16 +1,22 @@
 import streamlit as st
 import pandas as pd
 
-st.title("Server Recommendations")
+def render_server_recommendation():
+    st.subheader("Rekomendasi Server Berdasarkan Penggunaan")
 
-# Load data from CSV
-df = pd.read_csv("data/server_recommendation.csv")
+    try:
+        df = pd.read_csv("data/server_recommendation.csv")
+        df.columns = df.columns.str.strip()  # sanitize column headers
 
-# Display as table
-st.dataframe(df, use_container_width=True, hide_index=True)
+        # Sort by Use Case alphabetically if column exists
+        if "Use Case" in df.columns:
+            df = df.sort_values("Use Case")
 
-# Optional: show as static Markdown table
-st.markdown("### Plain Text View")
-st.write(df.to_markdown(index=False))
+        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.caption("Gunakan tabel di atas sebagai acuan awal sebelum menghitung biaya VPS yang sesuai.")
+    except FileNotFoundError:
+        st.error("File 'data/server_recommendation.csv' tidak ditemukan.")
+    except Exception as e:
+        st.error(f"Gagal memuat data rekomendasi: {e}")
 
-st.caption("Use this as a starting reference before calculating VPS costs.")
+    st.divider()
