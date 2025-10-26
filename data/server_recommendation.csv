@@ -1,9 +1,9 @@
-Use Case,Specs,Typical Load,Storage,Description
-Staging / Testing,1 vCPU / 1 GB,1–2 users,10 GB,"Testing, landing pages, static sites"
-Personal Blog / Portfolio,2 vCPU / 1 GB,1 user/sec,10–20 GB,"WordPress, low traffic"
-Small website,2 vCPU / 4 GB,10–20 concurrent,20–30 GB,"Informational sites"
-Medium Web App / API,2 vCPU / 6–8 GB,≤50 concurrent,20–40 GB,"App with SSO or small DB"
-Moderate Web / API,4 vCPU / 8 GB,100–150 concurrent,40–60 GB,"Payment & cart systems"
-High-load API Gateway,4 vCPU / 16 GB,200–400 concurrent,60–100 GB,"Backend + API"
-High-traffic / API,8 vCPU / 16–32 GB,500–1000 concurrent,100–200 GB,"Heavy-load web services"
-AI / ML Apps,GPU / high RAM,—,≥100 GB,"contact: datalab.indonesia@wri.org"
+Specs,Storage,Typical Load,Use Case,Description
+1 vCPU / 1 GB,10 GB,1–2 users,Staging / Testing,"Testing, landing pages, static sites"
+2 vCPU / 1 GB,10–20 GB,1 user/sec,Personal Blog / Portfolio,"WordPress, low traffic"
+2 vCPU / 4 GB,20–30 GB,10–20 concurrent,Small website,"Informational sites"
+2 vCPU / 6–8 GB,20–40 GB,≤50 concurrent,Medium Web App / API,"App with SSO or small DB"
+4 vCPU / 8 GB,40–60 GB,100–150 concurrent,Moderate Web / API,"Payment & cart systems"
+4 vCPU / 16 GB,60–100 GB,200–400 concurrent,High-load API Gateway,"Backend + API"
+8 vCPU / 16–32 GB,100–200 GB,500–1000 concurrent,High-traffic / API,"Heavy-load web services"
+GPU / high RAM,≥100 GB,—,AI / ML Apps,"contact: datalab.indonesia@wri.org"
