@@ -16,12 +16,10 @@ def render_server_vps():
     # ------------------------------
     # User selection
     # ------------------------------
-    st.markdown("### Pilih Jenis VPS:")
-    group = st.radio(
-        " ",
-        sorted(df["Group"].unique()),
-        horizontal=True
-    )
+    st.markdown("#### Pilih Jenis VPS:")
+    group = st.radio("", sorted(df["Group"].unique()), horizontal=True, label_visibility="collapsed")
+    st.markdown("<div style='margin-top:-1rem'></div>", unsafe_allow_html=True)
+
 
     # Descriptions based on selection
     descriptions = {
