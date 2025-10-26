@@ -1,0 +1,9 @@
+Use Case,Specs,Typical Load,Storage,Description
+Staging / Testing,1 vCPU / 1 GB,1–2 users,10 GB,"Testing, landing pages, static sites"
+Personal Blog / Portfolio,2 vCPU / 1 GB,1 user/sec,10–20 GB,"WordPress, low traffic"
+Company Profile,2 vCPU / 4 GB,10–20 concurrent,20–30 GB,Informational sites
+Small Web App / Login,2 vCPU / 6–8 GB,≤50 concurrent,20–40 GB,App with SSO or small DB
+Business / E-Commerce,4 vCPU / 8 GB,100–150 concurrent,40–60 GB,Payment & cart systems
+Corporate / API Gateway,4 vCPU / 16 GB,200–400 concurrent,60–100 GB,Backend + API
+High-Traffic / API,8 vCPU / 16–32 GB,500–1000 concurrent,100–200 GB,Heavy-load web services
+AI / ML Apps,GPU / high RAM,—,≥100 GB,Special class
