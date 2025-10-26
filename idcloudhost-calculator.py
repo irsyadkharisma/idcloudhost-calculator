@@ -1,34 +1,47 @@
 import streamlit as st
 import pandas as pd
+from extreme_custom import render_cloud_vps
+from paket_server import render_server_vps
 
-st.set_page_config(page_title="IDCloudHost Server Advisor", page_icon="☁️", layout="centered")
+st.set_page_config(page_title="Kalkulator dan Paket Server", page_icon="💰", layout="centered")
+st.title("💰 Paket Server untuk Produk Internal")
+st.caption("Digunakan sebagai basis perhitungan biaya acuan awal")
 
-st.title("IDCloudHost Server Advisor")
-st.caption("Pilih tab di kiri untuk melihat rekomendasi server atau menghitung biaya VPS.")
-
-st.markdown("""
-Selamat datang di **IDCloudHost Server Advisor**  
-Gunakan dua halaman berikut:
-1. **Rekomendasi Server** — untuk melihat kebutuhan server berdasarkan jenis penggunaan.  
-2. **Kalkulator VPS** — untuk menghitung biaya detail dengan konfigurasi tertentu.  
-""")
-
-# Load a short preview of recommendations
-st.subheader("Ringkasan Rekomendasi Server")
+# ------------------------------
+# Show server recommendation table first
+# ------------------------------
+st.subheader("Rekomendasi Server Berdasarkan Penggunaan")
 
 try:
     df = pd.read_csv("data/server_recommendation.csv")
-    st.dataframe(df.head(5), use_container_width=True, hide_index=True)
-    st.caption("Tabel di atas adalah ringkasan dari rekomendasi server. Buka halaman 'Rekomendasi Server' untuk versi lengkap.")
+    order = [
+        "Staging / Testing",
+        "Personal Blog / Portfolio",
+        "Company Profile",
+        "Small Web App / Login",
+        "Business / E-Commerce",
+        "Corporate / API Gateway",
+        "High-Traffic / API",
+        "AI / ML Apps"
+    ]
+    df["Use Case"] = pd.Categorical(df["Use Case"], categories=order, ordered=True)
+    df = df.sort_values("Use Case")
+
+    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.caption("Gunakan tabel di atas sebagai acuan awal sebelum menghitung biaya VPS yang sesuai.")
 except Exception as e:
     st.error(f"Gagal memuat data rekomendasi: {e}")
 
-# Link to calculator page
-st.markdown("---")
-st.markdown(
-    """
-    **Ingin menghitung biaya VPS untuk konfigurasi tertentu?**  
-    [Buka Kalkulator VPS →](./Kalkulator_VPS)
-    """,
-    unsafe_allow_html=True
-)
+st.divider()
+
+# ------------------------------
+# VPS Calculator section
+# ------------------------------
+st.subheader("Kalkulator VPS dan Paket Server")
+
+mode = st.radio("Pilih Kategori Produk:", ["Cloud VPS eXtreme", "Server VPS"], horizontal=True)
+
+if mode == "Cloud VPS eXtreme":
+    render_cloud_vps()
+else:
+    render_server_vps()
