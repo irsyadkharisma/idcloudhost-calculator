@@ -1,52 +1,35 @@
 import streamlit as st
-import math
-from extreme_custom import render_cloud_vps
-from paket_server import render_server_vps
-from pages.server_recommendation import render_server_recommendation
+import pandas as pd
+import re
 
-# --- Konfigurasi Halaman ---
-st.set_page_config(page_title="JUBX - Server Estimator", page_icon="💰", layout="centered")
+def parse_vcpu(value):
+    """Mengekstrak nilai numerik vCPU untuk pengurutan."""
+    match = re.search(r"(\d+)", str(value))
+    return int(match.group(1)) if match else 999  # AI/GPU diletakkan paling bawah
 
-# --- Logika Estimasi (Refined) ---
-def get_smart_estimate(visitors, duration, is_ai=False, ai_params=0):
-    if is_ai:
-        vram = (ai_params * 0.8) + 2
-        return vram
-    else:
-        cu = (visitors * duration) / 3600
-        cpu = max(1, math.ceil(cu / 50))
-        ram = math.ceil(1 + (cu * 0.032))
-        return cu, cpu, ram
+def render_server_recommendation():
+    st.subheader("Rekomendasi Server & Skenario Penggunaan")
 
-# --- UI Header ---
-st.title("💰 Smart Infrastructure Calculator")
-st.caption("Alat bantu estimasi spek dan biaya untuk ekosistem JUBX")
+    try:
+        df = pd.read_csv("data/server_recommendation.csv")
+        df.columns = df.columns.str.strip()
 
-# --- Bagian 1: Smart Estimator (Fitur Baru) ---
-with st.expander("🔍 Belum tahu butuh spek apa? Gunakan Smart Estimator", expanded=True):
-    mode_est = st.radio("Tipe Produk:", ["Web/Mobile App", "AI Model (LLM)"], horizontal=True)
-    
-    if mode_est == "Web/Mobile App":
-        col1, col2 = st.columns(2)
-        visitors = col1.number_input("Estimasi User/Jam:", value=1000)
-        duration = col2.number_input("Rata-rata Durasi Sesi (detik):", value=60)
-        cu, cpu, ram = get_smart_estimate(visitors, duration)
-        st.info(f"💡 Hasil Estimasi: Anda butuh sekitar **{cpu} vCPU** dan **{ram} GB RAM** (untuk ~{math.ceil(cu)} concurrent users).")
-    else:
-        params = st.slider("Ukuran Parameter Model AI (Billion):", 1, 70, 8)
-        vram = get_smart_estimate(0, 0, is_ai=True, ai_params=params)
-        st.warning(f"💡 Estimasi AI: Anda butuh GPU dengan minimal **{vram:.1f} GB VRAM**.")
+        # Menggabungkan Use Case dan Description
+        df["Skenario Penggunaan"] = df["Use Case"] + ": " + df["Description"]
 
-st.divider()
+        # Memilih dan menyusun ulang kolom yang akan ditampilkan
+        display_columns = ["Specs", "Storage", "Typical Load", "Skenario Penggunaan"]
+        df_display = df[display_columns].copy()
 
-# --- Bagian 2: Tabel Rekomendasi Asli ---
-render_server_recommendation()
+        # Sort berdasarkan spesifikasi vCPU
+        df_display["SortKey"] = df_display["Specs"].apply(parse_vcpu)
+        df_display = df_display.sort_values("SortKey").drop(columns=["SortKey"])
 
-# --- Bagian 3: Kalkulator Biaya Asli ---
-st.subheader("Kalkulator Biaya VPS")
-mode = st.radio("Pilih Kategori Produk:", ["Cloud VPS eXtreme", "Paket Server VPS"], horizontal=True)
-
-if mode == "Cloud VPS eXtreme":
-    render_cloud_vps()
-else:
-    render_server_vps()
+        # Menampilkan tabel
+        st.dataframe(df_display, use_container_width=True, hide_index=True)
+        st.caption("Gunakan tabel di atas sebagai acuan awal sebelum menghitung biaya VPS yang sesuai di bagian bawah.")
+        
+    except FileNotFoundError:
+        st.error("File 'data/server_recommendation.csv' tidak ditemukan.")
+    except Exception as e:
+        st.error(f"Terjadi kesalahan saat memproses data: {e}")
