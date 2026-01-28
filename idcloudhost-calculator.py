@@ -8,25 +8,41 @@ from paket_server import render_server_vps
 # --- Konfigurasi Halaman ---
 st.set_page_config(page_title="DLI - Server Estimator", page_icon="💰", layout="centered")
 
-# --- Custom Styling (Agar Mirip Gambar ke-2) ---
+# --- Custom CSS untuk Card & Radio ---
 st.markdown("""
     <style>
         .report-card {
-            background-color: #f8f9fa;
+            background-color: #ffffff;
             padding: 20px;
             border-radius: 10px;
-            border-left: 10px solid #007bff;
-            margin-bottom: 20px;
+            border: 1px solid #e0e0e0;
+            border-left: 8px solid #28a745;
+            margin-top: 20px;
+            box-shadow: 2px 2px 10px rgba(0,0,0,0.05);
         }
-        .price-text {
-            color: #28a745;
-            font-size: 32px;
+        .price-container {
+            background-color: #f1f8e9;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            margin-top: 15px;
+            border: 1px dashed #2e7d32;
+        }
+        .price-val {
+            color: #1b5e20;
+            font-size: 30px;
             font-weight: bold;
         }
-        .spec-label {
-            color: #6c757d;
-            font-size: 14px;
-            margin-bottom: 0px;
+        .label-text {
+            color: #757575;
+            font-size: 13px;
+            text-transform: uppercase;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        /* Style untuk membuat radio button lebih terlihat jelas */
+        .stRadio [data-testid="stMarkdownContainer"] p {
+            font-size: 16px;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -38,75 +54,94 @@ def parse_vcpu(value):
 
 # --- UI MAIN APP ---
 st.title("💰 Kalkulator Biaya Server")
-st.caption("Estimasi spesifikasi dan biaya infrastruktur digital — WRI / Data Lab Indonesia")
+st.caption("Estimasi spesifikasi dan biaya infrastruktur digital — Data Lab Indonesia")
 
-# 1. Bagian Dropdown Rekomendasi
-st.subheader("📋 Pilih Skenario Penggunaan")
+# 1. SMART ESTIMATOR (TOOLTIP)
+with st.expander("🔍 Belum tahu butuh spek apa? Gunakan Smart Estimator"):
+    mode_est = st.radio("Tipe Produk:", ["Web/Mobile App", "AI Model (LLM)"], horizontal=True)
+    if mode_est == "Web/Mobile App":
+        c1, c2 = st.columns(2)
+        v = c1.number_input("User/Jam:", value=1000)
+        d = c2.number_input("Sesi (detik):", value=60)
+        cu = (v * d) / 3600
+        cpu, ram = max(1, math.ceil(cu/50)), math.ceil(1+(cu*0.032))
+        st.info(f"💡 Saran: **{cpu} vCPU / {ram} GB RAM**")
+    else:
+        p = st.slider("Parameter AI (Billion):", 1, 70, 8)
+        st.warning(f"💡 Saran: Minimal GPU dengan **{(p*0.8)+2:.1f} GB VRAM**")
+
+st.divider()
+
+# 2. RADIO BUTTON SELECTION (DATA DARI TABEL REKOMENDASI)
+st.subheader("📋 Pilih Paket Rekomendasi")
 
 try:
-    # Load Data Rekomendasi
+    # Load Data
     df_rec = pd.read_csv("data/server_recommendation.csv")
     df_rec.columns = df_rec.columns.str.strip()
     
-    # Sort data agar rapi
+    # Sorting
     df_rec["SortKey"] = df_rec["Specs"].apply(parse_vcpu)
     df_rec = df_rec.sort_values("SortKey").reset_index(drop=True)
 
-    # DROPDOWN (Selectbox) - Sesuai permintaan Anda
+    # RADIO BUTTON - Menampilkan Specs dan Use Case
     options = [f"{row['Specs']} — {row['Use Case']}" for _, row in df_rec.iterrows()]
-    selected_option = st.selectbox("Pilih kebutuhan server Anda:", options)
+    selected_label = st.radio(
+        "Pilih skenario yang sesuai dengan kebutuhan Anda:",
+        options=options,
+        index=0
+    )
 
-    # Ambil data yang dipilih
-    selected_row = df_rec[df_rec["Specs"] + " — " + df_rec["Use Case"] == selected_option].iloc[0]
+    # Ambil data baris yang dipilih
+    selected_row = df_rec[df_rec["Specs"] + " — " + df_rec["Use Case"] == selected_label].iloc[0]
 
-    # TAMPILKAN INFORMASI SEPERTI GAMBAR KE-2
+    # --- TAMPILAN DETAIL (REPORT CARD) ---
     st.markdown(f"""
     <div class="report-card">
-        <p class="spec-label">SKENARIO PENGGUNAAN</p>
-        <p style="font-size: 18px; font-weight: bold; margin-bottom: 15px;">
-            {selected_row['Use Case']}: {selected_row['Description']}
+        <div class="label-text">SKENARIO & DESKRIPSI</div>
+        <p style="font-size: 18px; margin-bottom: 20px;">
+            <strong>{selected_row['Use Case']}</strong>: {selected_row['Description']}
         </p>
-        <div style="display: flex; justify-content: space-between; border-top: 1px solid #dee2e6; pt-3;">
-            <div style="flex: 1;">
-                <p class="spec-label">TARGET BEBAN</p>
-                <p><b>{selected_row['Typical Load']}</b></p>
+        <div style="display: flex; gap: 50px; border-top: 1px solid #eee; padding-top: 15px;">
+            <div>
+                <div class="label-text">TARGET BEBAN</div>
+                <div style="font-size: 16px; font-weight: bold;">{selected_row['Typical Load']}</div>
             </div>
-            <div style="flex: 1;">
-                <p class="spec-label">STORAGE</p>
-                <p><b>{selected_row['Storage']}</b></p>
+            <div>
+                <div class="label-text">STORAGE</div>
+                <div style="font-size: 16px; font-weight: bold;">{selected_row['Storage']}</div>
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # 2. LOGIKA HARGA OTOMATIS
+    # --- LOGIKA HARGA OTOMATIS ---
     df_plans = pd.read_csv("data/server_vps_plans.csv")
     nums = re.findall(r"\d+", selected_row['Specs'])
     
     if len(nums) >= 2:
-        # Cari di data harga berdasarkan CPU dan RAM
         match = df_plans[(df_plans['CPU'] == int(nums[0])) & (df_plans['RAM (GB)'] == int(nums[1]))]
         if not match.empty:
             price = match.iloc[0]['Price (IDR)']
             st.markdown(f"""
-                <div style="text-align: center; padding: 15px; background: #e9ecef; border-radius: 8px;">
-                    <p style="margin-bottom: 0; font-size: 14px;">Estimasi Biaya Mulai Dari:</p>
-                    <p class="price-text">Rp {price:,} <span style="font-size: 16px; color: #666;">/ bulan</span></p>
+                <div class="price-container">
+                    <div class="label-text">ESTIMASI BIAYA BULANAN</div>
+                    <div class="price-val">Rp {price:,} <span style="font-size: 14px; font-weight: normal; color: #666;">/ bulan</span></div>
                 </div>
             """, unsafe_allow_html=True)
         else:
-            st.info("💡 Spek ini memerlukan konfigurasi Custom. Silakan cek kalkulator di bawah.")
+            st.info("💡 Paket ini memerlukan konfigurasi Custom. Cek kalkulator di bawah.")
     else:
-        st.warning("🤖 **AI/GPU Apps:** Memerlukan infrastruktur khusus. Hubungi tim DLI untuk penawaran.")
+        st.warning("🤖 **Infrastruktur AI:** Memerlukan GPU. Hubungi tim DLI untuk penawaran harga.")
 
 except Exception as e:
-    st.error(f"Gagal memuat data: {e}")
+    st.error(f"Error memuat data: {e}")
 
 st.divider()
 
 # 3. KALKULATOR DETAIL (EXISTING)
 st.subheader("⚙️ Kalkulator Biaya Detail (Custom)")
-mode = st.radio("Pilih Tipe Perhitungan:", ["Cloud VPS eXtreme", "Paket Server VPS"], horizontal=True)
+mode = st.radio("Mode Kalkulator:", ["Cloud VPS eXtreme", "Paket Server VPS"], horizontal=True)
 
 if mode == "Cloud VPS eXtreme":
     render_cloud_vps()
