@@ -203,21 +203,24 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 st.divider()
-with st.expander("📐 Penjelasan Perhitungan", expanded=False):
-    st.markdown("### Metodologi Estimasi")
-    st.markdown("**Rumus Concurrent Users (CU):**")
-    st.latex(r"CU = \frac{\text{User per Jam} \times \text{Durasi Sesi (detik)}}{3600}")
-    st.markdown("**Estimasi RAM:**")
-    st.latex(r"RAM = RAM_{dasar} + (CU \times RAM_{per\ request})")
-    st.info("**Parameter Acuan:**\n* RAM Dasar: 1–2 GB\n* RAM per Request: ±16–32 MB\n* CPU: 1 vCPU ≈ 20–50 req/detik")
 
-st.divider()
-if st.button("📄 Buat Lampiran PDF"):
-    pdf_bytes = build_pdf_report({
-        "exported_at_str": datetime.now().strftime("%d-%m-%Y %H:%M:%S"),
-        "preset_label": st.session_state.preset_radio,
-        "users_per_hour": u_hour, "session_seconds": s_sec, "concurrent_users": concurrent,
-        "cpu": st.session_state.cpu, "ram": st.session_state.ram, "storage": st.session_state.storage,
-        "cpu_type": variant, "total_price": total_price, "unit_label": unit_label
-    })
-    st.download_button("Download PDF", pdf_bytes, "DLI_Report.pdf", "application/pdf")
+pdf_bytes = build_pdf_report({
+    "exported_at_str": datetime.now().strftime("%d-%m-%Y %H:%M:%S"),
+    "preset_label": st.session_state.preset_radio,
+    "users_per_hour": u_hour,
+    "session_seconds": s_sec,
+    "concurrent_users": concurrent,
+    "cpu": st.session_state.cpu,
+    "ram": st.session_state.ram,
+    "storage": st.session_state.storage,
+    "cpu_type": variant,
+    "total_price": total_price,
+    "unit_label": unit_label,
+})
+
+st.download_button(
+    label="📄 Export PDF Estimasi Infrastruktur",
+    data=pdf_bytes,
+    file_name=f"DLI_Estimasi_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+    mime="application/pdf",
+)
