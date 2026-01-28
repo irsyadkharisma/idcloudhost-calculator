@@ -3,7 +3,7 @@ import streamlit as st
 
 from io import BytesIO
 from datetime import datetime
-from reportlab.lib.pagesizes import A4
+from reportlab.lib.pagesizes import A4, landscape
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import cm
 
@@ -60,28 +60,17 @@ def ceil_div(a: int, b: int) -> int:
     return (a + b - 1) // b
 
 
-def recommend_from_concurrency(concurrent: int, product_type: str) -> str:
+def recommend_from_concurrency(concurrent: int) -> str:
     if concurrent <= 20:
-        rec = "1 vCPU / 2 GB RAM"
+        return "1 vCPU / 2 GB RAM"
     elif concurrent <= 60:
-        rec = "2 vCPU / 4 GB RAM"
+        return "2 vCPU / 4 GB RAM"
     elif concurrent <= 150:
-        rec = "4 vCPU / 8 GB RAM"
+        return "4 vCPU / 8 GB RAM"
     elif concurrent <= 400:
-        rec = "8 vCPU / 16 GB RAM"
+        return "8 vCPU / 16 GB RAM"
     else:
-        rec = "8 vCPU / 32 GB RAM (atau lebih)"
-
-    # LLM tends to be heavier
-    if product_type == "AI Model (LLM)":
-        if rec.startswith("1 vCPU"):
-            rec = "2 vCPU / 4 GB RAM"
-        elif rec.startswith("2 vCPU"):
-            rec = "4 vCPU / 8 GB RAM"
-        elif rec.startswith("4 vCPU / 8"):
-            rec = "4 vCPU / 16 GB RAM"
-
-    return rec
+        return "8 vCPU / 32 GB RAM (atau lebih)"
 
 
 # ----------------------------
@@ -171,13 +160,12 @@ def auto_switch_to_custom_if_sliders_changed():
 
 
 # ----------------------------
-# PDF Export
+# PDF Export (Landscape)
 # ----------------------------
 def build_pdf_report(data: dict) -> bytes:
     """
     data keys expected:
     - exported_at_str
-    - product_type
     - preset_label
     - users_per_hour
     - session_seconds
@@ -191,8 +179,11 @@ def build_pdf_report(data: dict) -> bytes:
     - max_duration_seconds
     """
     buf = BytesIO()
-    c = canvas.Canvas(buf, pagesize=A4)
-    width, height = A4
+
+    # Landscape PDF
+    page_size = landscape(A4)
+    c = canvas.Canvas(buf, pagesize=page_size)
+    width, height = page_size
 
     margin_x = 2 * cm
     y = height - 2 * cm
@@ -213,13 +204,12 @@ def build_pdf_report(data: dict) -> bytes:
         c.setFont("Helvetica-Bold", 10)
         c.drawString(margin_x, y_pos, label)
         c.setFont("Helvetica", 10)
-        c.drawString(margin_x + 6.4 * cm, y_pos, value)
+        c.drawString(margin_x + 7.0 * cm, y_pos, value)
 
     c.setFont("Helvetica-Bold", 12)
     c.drawString(margin_x, y, "Ringkasan Estimasi")
     y -= 18
 
-    row("Tipe Produk", str(data["product_type"]), y); y -= 14
     row("Preset", str(data["preset_label"]), y); y -= 14
     row("User per Jam", f"{int(data['users_per_hour']):,}", y); y -= 14
     row("Durasi Sesi (detik)", f"{int(data['session_seconds']):,}", y); y -= 14
@@ -230,7 +220,7 @@ def build_pdf_report(data: dict) -> bytes:
     y -= 14
     c.setFont("Helvetica", 10)
     rec = str(data["recommendation"])
-    max_chars = 95
+    max_chars = 120  # landscape gives more room
     for i in range(0, len(rec), max_chars):
         c.drawString(margin_x, y, rec[i:i + max_chars])
         y -= 12
@@ -284,14 +274,6 @@ concurrent = 0
 
 # ===== Smart Estimator =====
 with st.expander("🔎 Belum tahu butuh spek apa? Gunakan Smart Estimator", expanded=True):
-    st.markdown("### Tipe Produk")
-    product_type = st.radio(
-        " ",
-        ["Web/Mobile App", "AI Model (LLM)"],
-        horizontal=True,
-        label_visibility="collapsed",
-        key="product_type",
-    )
 
     st.markdown("### Pilih preset (opsional)")
     if "preset_radio" not in st.session_state:
@@ -332,31 +314,6 @@ with st.expander("🔎 Belum tahu butuh spek apa? Gunakan Smart Estimator", expa
             key="session_seconds",
         )
 
-    st.markdown(
-        r"""
-        ### 📐 Penjelasan Perhitungan
-
-        **Rumus Concurrent Users (CU):**
-        \[
-        CU = \frac{\text{User per Jam} \times \text{Durasi Sesi (detik)}}{3600}
-        \]
-
-        **Estimasi RAM:**
-        \[
-        RAM = RAM_{dasar} + (CU \times RAM_{per\ request})
-        \]
-
-        - RAM dasar: 1–2 GB (OS + service)
-        - RAM per request: ±16–32 MB (PHP / Node.js ringan)
-
-        **Estimasi CPU:**
-        - 1 vCPU modern ≈ 20–50 request/detik (task ringan)
-        - Untuk trafik tinggi, disarankan **horizontal scaling** dengan load balancer
-
-        ⚠️ *Durasi sesi dibatasi sesuai timeout aplikasi / load balancer agar estimasi tetap realistis.*
-        """,
-        )
-
     # Clamp absurd duration
     if session_seconds > max_duration_seconds:
         st.warning(
@@ -367,7 +324,7 @@ with st.expander("🔎 Belum tahu butuh spek apa? Gunakan Smart Estimator", expa
         st.session_state["session_seconds"] = max_duration_seconds
 
     concurrent = ceil_div(int(users_per_hour * session_seconds), 3600)
-    rec_text = recommend_from_concurrency(concurrent, product_type)
+    rec_text = recommend_from_concurrency(concurrent)
 
     # store for export
     st.session_state["concurrent"] = concurrent
@@ -382,6 +339,31 @@ with st.expander("🔎 Belum tahu butuh spek apa? Gunakan Smart Estimator", expa
         """,
         unsafe_allow_html=True,
     )
+
+    # Dedicated collapsible explanation under estimator (collapsed by default)
+    with st.expander("📐 Penjelasan Perhitungan", expanded=False):
+        st.markdown(
+            r"""
+**Rumus Concurrent Users (CU):**  
+\[
+CU = \frac{\text{User per Jam} \times \text{Durasi Sesi (detik)}}{3600}
+\]
+
+**Estimasi RAM:**  
+\[
+RAM = RAM_{dasar} + (CU \times RAM_{per\ request})
+\]
+
+- RAM dasar: 1–2 GB (OS + service)  
+- RAM per request: ±16–32 MB (PHP / Node.js ringan)
+
+**Estimasi CPU:**
+- 1 vCPU modern ≈ 20–50 request/detik (task ringan)  
+- Untuk trafik tinggi, disarankan **horizontal scaling** dengan load balancer  
+
+⚠️ Durasi sesi dibatasi sesuai timeout aplikasi / load balancer agar estimasi tetap realistis.
+            """
+        )
 
 st.divider()
 
@@ -506,7 +488,6 @@ exported_at_str = exported_at.strftime("%d-%m-%Y %H:%M:%S")
 
 pdf_bytes = build_pdf_report({
     "exported_at_str": exported_at_str,
-    "product_type": st.session_state.get("product_type", "Web/Mobile App"),
     "preset_label": st.session_state.get("preset_radio", "—"),
     "users_per_hour": st.session_state.get("users_per_hour", 0),
     "session_seconds": st.session_state.get("session_seconds", 0),
