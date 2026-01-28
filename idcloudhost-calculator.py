@@ -267,67 +267,67 @@ st.markdown(f"""
     </div>
 """, unsafe_allow_html=True)
 
-    # ---- Section 3: Metodologi (UI-like)
-    section("Metodologi")
+# ---- Section 3: Metodologi (UI-like)
+section("Metodologi")
 
-    # Sub-title like UI
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(margin_x, y, "Metodologi Estimasi")
-    y -= 18
+# Sub-title like UI
+c.setFont("Helvetica-Bold", 12)
+c.drawString(margin_x, y, "Metodologi Estimasi")
+y -= 18
 
-    # --- Rumus CU
-    c.setFont("Helvetica-Bold", 10)
-    c.drawString(margin_x, y, "Rumus Concurrent Users (CU):")
-    y -= 16
+# --- Rumus CU
+c.setFont("Helvetica-Bold", 10)
+c.drawString(margin_x, y, "Rumus Concurrent Users (CU):")
+y -= 16
 
-    # Centered formula (typography approximation)
-    c.setFont("Helvetica-Oblique", 12)
-    c.drawCentredString(width / 2, y, "CU = (User per Jam × Durasi Sesi (detik)) / 3600")
-    y -= 26
+# Centered formula (typography approximation)
+c.setFont("Helvetica-Oblique", 12)
+c.drawCentredString(width / 2, y, "CU = (User per Jam × Durasi Sesi (detik)) / 3600")
+y -= 26
 
-    # --- Rumus RAM
-    c.setFont("Helvetica-Bold", 10)
-    c.drawString(margin_x, y, "Estimasi RAM:")
-    y -= 16
+# --- Rumus RAM
+c.setFont("Helvetica-Bold", 10)
+c.drawString(margin_x, y, "Estimasi RAM:")
+y -= 16
 
-    c.setFont("Helvetica-Oblique", 12)
-    c.drawCentredString(width / 2, y, "RAM = RAM dasar + (CU × RAM per request)")
-    y -= 26
+c.setFont("Helvetica-Oblique", 12)
+c.drawCentredString(width / 2, y, "RAM = RAM dasar + (CU × RAM per request)")
+y -= 26
 
-    # --- Parameter box (light blue like your UI)
-    box_x = margin_x
-    box_w = width - (2 * margin_x)
-    box_h = 50  # adjust if you add more lines
-    box_y = y - box_h + 8  # position box below current y
+# --- Parameter box (light blue like your UI)
+box_x = margin_x
+box_w = width - (2 * margin_x)
+box_h = 50  # adjust if you add more lines
+box_y = y - box_h + 8  # position box below current y
 
-    # Draw filled rectangle
-    c.saveState()
-    c.setFillColorRGB(0.90, 0.95, 1.00)   # light blue
-    c.setStrokeColorRGB(0.90, 0.95, 1.00) # no visible border
-    c.roundRect(box_x, box_y, box_w, box_h, 6, fill=1, stroke=1)
-    c.restoreState()
+# Draw filled rectangle
+c.saveState()
+c.setFillColorRGB(0.90, 0.95, 1.00)   # light blue
+c.setStrokeColorRGB(0.90, 0.95, 1.00) # no visible border
+c.roundRect(box_x, box_y, box_w, box_h, 6, fill=1, stroke=1)
+c.restoreState()
 
-    # Box content
-    text_x = box_x + 0.6 * cm
-    text_y = box_y + box_h - 14
+# Box content
+text_x = box_x + 0.6 * cm
+text_y = box_y + box_h - 14
 
-    c.setFont("Helvetica-Bold", 10)
-    c.drawString(text_x, text_y, "Parameter Acuan:")
-    text_y -= 14
+c.setFont("Helvetica-Bold", 10)
+c.drawString(text_x, text_y, "Parameter Acuan:")
+text_y -= 14
 
-    c.setFont("Helvetica", 10)
+c.setFont("Helvetica", 10)
 
-    # simple bullet helper
-    def bullet_line(txt, yy):
-        c.drawString(text_x, yy, "•")
-        c.drawString(text_x + 0.5 * cm, yy, txt)
+# simple bullet helper
+def bullet_line(txt, yy):
+    c.drawString(text_x, yy, "•")
+    c.drawString(text_x + 0.5 * cm, yy, txt)
 
-    bullet_line("RAM Dasar: 1–2 GB", text_y); text_y -= 14
-    bullet_line("RAM per Request: ±16–32 MB", text_y); text_y -= 14
-    bullet_line("CPU: 1 vCPU ≈ 20–50 req/detik", text_y); text_y -= 14
+bullet_line("RAM Dasar: 1–2 GB", text_y); text_y -= 14
+bullet_line("RAM per Request: ±16–32 MB", text_y); text_y -= 14
+bullet_line("CPU: 1 vCPU ≈ 20–50 req/detik", text_y); text_y -= 14
 
-    # Move y below the box
-    y = box_y - 18
+# Move y below the box
+y = box_y - 18
 
 
 
@@ -353,6 +353,7 @@ st.download_button(
     file_name=f"DLI_Estimasi_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
     mime="application/pdf",
 )
+
 
 
 
