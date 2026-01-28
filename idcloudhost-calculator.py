@@ -209,7 +209,7 @@ def build_pdf_report(data: dict) -> bytes:
     c.setFillColorRGB(0.2, 0.2, 0.2)
     c.setFont("Helvetica", 9)
     c.drawString(margin_x, 1.7 * cm, "by Data Lab Indonesia")
-    c.drawRightString(right_x, 1.7 * cm, "Generated via Smart Estimator")
+    c.drawRightString(right_x, 1.7 * cm, "Generated via DLI Smart Estimator")
 
     c.showPage()
     c.save()
@@ -296,4 +296,5 @@ st.download_button(
     file_name=f"DLI_Estimasi_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
     mime="application/pdf",
 )
+
 
