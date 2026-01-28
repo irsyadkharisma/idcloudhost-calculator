@@ -75,4 +75,7 @@ st.divider()
 st.subheader("💵 Hitung Biaya Real")
 mode = st.radio("Pilih Kategori Produk:", ["Cloud VPS eXtreme", "Paket Server VPS"], horizontal=True)
 
-if mode == "
+if mode == "Cloud VPS eXtreme":
+    render_cloud_vps()
+else:
+    render_server_vps()
