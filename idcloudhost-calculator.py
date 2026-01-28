@@ -1,149 +1,186 @@
-import streamlit as st
-import pandas as pd
-import math
 import re
+import pandas as pd
+import streamlit as st
+
 from extreme_custom import render_cloud_vps
 from paket_server import render_server_vps
 
-# --- Konfigurasi Halaman ---
-st.set_page_config(page_title="DLI - Server Estimator", page_icon="💰", layout="centered")
 
-# --- Custom CSS untuk Card & Radio ---
-st.markdown("""
-    <style>
-        .report-card {
-            background-color: #ffffff;
-            padding: 20px;
-            border-radius: 10px;
-            border: 1px solid #e0e0e0;
-            border-left: 8px solid #28a745;
-            margin-top: 20px;
-            box-shadow: 2px 2px 10px rgba(0,0,0,0.05);
-        }
-        .price-container {
-            background-color: #f1f8e9;
-            padding: 15px;
-            border-radius: 8px;
-            text-align: center;
-            margin-top: 15px;
-            border: 1px dashed #2e7d32;
-        }
-        .price-val {
-            color: #1b5e20;
-            font-size: 30px;
-            font-weight: bold;
-        }
-        .label-text {
-            color: #757575;
-            font-size: 13px;
-            text-transform: uppercase;
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-        /* Style untuk membuat radio button lebih terlihat jelas */
-        .stRadio [data-testid="stMarkdownContainer"] p {
-            font-size: 16px;
-        }
-    </style>
-""", unsafe_allow_html=True)
-
-# --- Helper Functions ---
-def parse_vcpu(value):
+# ----------------------------
+# Helpers: Recommendation table
+# ----------------------------
+def _parse_vcpu(value) -> int:
+    """Extract numeric value of vCPU for sorting."""
     match = re.search(r"(\d+)", str(value))
-    return int(match.group(1)) if match else 999 
+    return int(match.group(1)) if match else 999  # GPU/high RAM goes last
 
-# --- UI MAIN APP ---
-st.title("💰 Kalkulator Biaya Server")
-st.caption("Estimasi spesifikasi dan biaya infrastruktur digital — Data Lab Indonesia")
 
-# 1. SMART ESTIMATOR (TOOLTIP)
-with st.expander("🔍 Belum tahu butuh spek apa? Gunakan Smart Estimator"):
-    mode_est = st.radio("Tipe Produk:", ["Web/Mobile App", "AI Model (LLM)"], horizontal=True)
-    if mode_est == "Web/Mobile App":
-        c1, c2 = st.columns(2)
-        v = c1.number_input("User/Jam:", value=1000)
-        d = c2.number_input("Sesi (detik):", value=60)
-        cu = (v * d) / 3600
-        cpu, ram = max(1, math.ceil(cu/50)), math.ceil(1+(cu*0.032))
-        st.info(f"💡 Saran: **{cpu} vCPU / {ram} GB RAM**")
-    else:
-        p = st.slider("Parameter AI (Billion):", 1, 70, 8)
-        st.warning(f"💡 Saran: Minimal GPU dengan **{(p*0.8)+2:.1f} GB VRAM**")
+def render_server_recommendation():
+    st.subheader("Rekomendasi Server Berdasarkan Penggunaan")
 
-st.divider()
+    try:
+        df = pd.read_csv("data/server_recommendation.csv")
+        df.columns = df.columns.str.strip()
 
-# 2. RADIO BUTTON SELECTION (DATA DARI TABEL REKOMENDASI)
-st.subheader("📋 Pilih Paket Rekomendasi")
+        desired_order = ["Specs", "Storage", "Typical Load", "Use Case", "Description"]
+        existing_columns = [col for col in desired_order if col in df.columns]
+        df = df[existing_columns]
 
-try:
-    # Load Data
-    df_rec = pd.read_csv("data/server_recommendation.csv")
-    df_rec.columns = df_rec.columns.str.strip()
-    
-    # Sorting
-    df_rec["SortKey"] = df_rec["Specs"].apply(parse_vcpu)
-    df_rec = df_rec.sort_values("SortKey").reset_index(drop=True)
+        df["SortKey"] = df["Specs"].apply(_parse_vcpu)
+        df = df.sort_values("SortKey").drop(columns=["SortKey"])
 
-    # RADIO BUTTON - Menampilkan Specs dan Use Case
-    options = [f"{row['Specs']} — {row['Use Case']}" for _, row in df_rec.iterrows()]
-    selected_label = st.radio(
-        "Pilih skenario yang sesuai dengan kebutuhan Anda:",
-        options=options,
-        index=0
+        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.caption("Gunakan tabel di atas sebagai acuan awal sebelum menghitung biaya VPS yang sesuai.")
+    except FileNotFoundError:
+        st.error("File 'data/server_recommendation.csv' tidak ditemukan.")
+    except Exception as e:
+        st.error(f"Gagal memuat data rekomendasi: {e}")
+
+    st.divider()
+
+
+# ----------------------------
+# Smart Estimator (like screenshot)
+# ----------------------------
+def _recommend_from_concurrency(concurrent: int) -> str:
+    """
+    Simple heuristic mapping concurrent users -> suggested base spec.
+    Adjust thresholds to match your infra reality.
+    """
+    if concurrent <= 20:
+        return "1 vCPU / 2 GB RAM"
+    if concurrent <= 60:
+        return "2 vCPU / 4 GB RAM"
+    if concurrent <= 150:
+        return "4 vCPU / 8 GB RAM"
+    if concurrent <= 400:
+        return "8 vCPU / 16 GB RAM"
+    return "GPU / High RAM (AI/ML or extreme load)"
+
+
+def render_smart_estimator():
+    st.title("🔎 Smart Estimator")
+    st.caption("Estimasi spesifikasi awal berdasarkan trafik dan durasi sesi (mirip contoh DLI).")
+
+    st.markdown("### Tipe Produk")
+    product_type = st.radio(
+        " ",
+        ["Web/Mobile App", "AI Model (LLM)"],
+        horizontal=True,
+        label_visibility="collapsed",
     )
 
-    # Ambil data baris yang dipilih
-    selected_row = df_rec[df_rec["Specs"] + " — " + df_rec["Use Case"] == selected_label].iloc[0]
+    st.markdown("### Pilih preset (opsional)")
+    col1, col2 = st.columns(2, gap="large")
 
-    # --- TAMPILAN DETAIL (REPORT CARD) ---
-    st.markdown(f"""
-    <div class="report-card">
-        <div class="label-text">SKENARIO & DESKRIPSI</div>
-        <p style="font-size: 18px; margin-bottom: 20px;">
-            <strong>{selected_row['Use Case']}</strong>: {selected_row['Description']}
-        </p>
-        <div style="display: flex; gap: 50px; border-top: 1px solid #eee; padding-top: 15px;">
-            <div>
-                <div class="label-text">TARGET BEBAN</div>
-                <div style="font-size: 16px; font-weight: bold;">{selected_row['Typical Load']}</div>
-            </div>
-            <div>
-                <div class="label-text">STORAGE</div>
-                <div style="font-size: 16px; font-weight: bold;">{selected_row['Storage']}</div>
-            </div>
+    presets = [
+        "1 vCPU / 1 GB — Staging / Testing",
+        "2 vCPU / 1 GB — Personal Blog / Portfolio",
+        "2 vCPU / 6–8 GB — Medium Web App / API",
+        "4 vCPU / 8 GB — Moderate Web / API",
+        "4 vCPU / 16 GB — High-load API Gateway",
+        "8 vCPU / 16–32 GB — High-traffic / API",
+        "GPU / high RAM — AI / ML Apps",
+    ]
+
+    # Split presets roughly like your screenshot (left 2, right rest)
+    with col1:
+        preset_left = st.radio(
+            " ",
+            presets[:2],
+            index=0,
+            label_visibility="collapsed",
+        )
+    with col2:
+        preset_right = st.radio(
+            " ",
+            presets[2:],
+            index=0,
+            label_visibility="collapsed",
+        )
+
+    st.markdown("### Beban Aplikasi")
+    c1, c2 = st.columns(2, gap="large")
+    with c1:
+        users_per_hour = st.number_input("User per Jam:", min_value=0, value=1000, step=50)
+    with c2:
+        session_seconds = st.number_input("Durasi Sesi (detik):", min_value=1, value=60, step=5)
+
+    # Core formula from screenshot behavior
+    concurrent = int((users_per_hour * session_seconds + 3599) // 3600)  # ceil(users*dur/3600)
+
+    # Recommendation
+    base_rec = _recommend_from_concurrency(concurrent)
+
+    # Small tweak if they picked LLM (because humans love underestimating AI workloads)
+    if product_type == "AI Model (LLM)":
+        # Nudge recommendation one tier up for LLM workloads
+        if base_rec.startswith("1 vCPU"):
+            base_rec = "2 vCPU / 4 GB RAM"
+        elif base_rec.startswith("2 vCPU"):
+            base_rec = "4 vCPU / 8 GB RAM"
+        elif base_rec.startswith("4 vCPU / 8"):
+            base_rec = "4 vCPU / 16 GB RAM"
+
+    st.markdown(
+        f"""
+        <div style="
+            background:#eaf3ff;
+            border-left:4px solid #3b82f6;
+            padding:16px;
+            border-radius:8px;
+            font-weight:600;
+        ">
+            💡 <b>Saran:</b> {base_rec} (untuk ~{concurrent} concurrent users)
         </div>
-    </div>
-    """, unsafe_allow_html=True)
+        """,
+        unsafe_allow_html=True,
+    )
 
-    # --- LOGIKA HARGA OTOMATIS ---
-    df_plans = pd.read_csv("data/server_vps_plans.csv")
-    nums = re.findall(r"\d+", selected_row['Specs'])
-    
-    if len(nums) >= 2:
-        match = df_plans[(df_plans['CPU'] == int(nums[0])) & (df_plans['RAM (GB)'] == int(nums[1]))]
-        if not match.empty:
-            price = match.iloc[0]['Price (IDR)']
-            st.markdown(f"""
-                <div class="price-container">
-                    <div class="label-text">ESTIMASI BIAYA BULANAN</div>
-                    <div class="price-val">Rp {price:,} <span style="font-size: 14px; font-weight: normal; color: #666;">/ bulan</span></div>
-                </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.info("💡 Paket ini memerlukan konfigurasi Custom. Cek kalkulator di bawah.")
-    else:
-        st.warning("🤖 **Infrastruktur AI:** Memerlukan GPU. Hubungi tim DLI untuk penawaran harga.")
+    st.caption(
+        "Rumus: concurrent ≈ ceil(User per Jam × Durasi Sesi / 3600). "
+        "Threshold rekomendasi bisa kamu ubah di fungsi _recommend_from_concurrency()."
+    )
 
-except Exception as e:
-    st.error(f"Error memuat data: {e}")
 
-st.divider()
+# ----------------------------
+# App shell (SPA-ish)
+# ----------------------------
+st.set_page_config(page_title="Kalkulator dan Paket Server", page_icon="💰", layout="centered")
+st.markdown(
+    """
+    <style>
+        .block-container {
+            max-width: 1200px;
+            padding-left: 3rem;
+            padding-right: 3rem;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
-# 3. KALKULATOR DETAIL (EXISTING)
-st.subheader("⚙️ Kalkulator Biaya Detail (Custom)")
-mode = st.radio("Mode Kalkulator:", ["Cloud VPS eXtreme", "Paket Server VPS"], horizontal=True)
+# Sidebar navigation (single file)
+st.sidebar.title("Navigasi")
+route = st.sidebar.radio(
+    " ",
+    ["Kalkulator & Paket Server", "Smart Estimator"],
+    label_visibility="collapsed",
+)
 
-if mode == "Cloud VPS eXtreme":
-    render_cloud_vps()
+if route == "Smart Estimator":
+    render_smart_estimator()
 else:
-    render_server_vps()
+    st.title("💰 Paket Server untuk Produk Internal")
+    st.caption("Digunakan sebagai basis perhitungan biaya acuan awal")
+
+    # Recommendation table (was previously in pages/server_recommendation.py)
+    render_server_recommendation()
+
+    st.subheader("Kalkulator VPS dan Paket Server")
+    mode = st.radio("Pilih Kategori Produk:", ["Cloud VPS eXtreme", "Paket Server VPS"], horizontal=True)
+
+    if mode == "Cloud VPS eXtreme":
+        render_cloud_vps()
+    else:
+        render_server_vps()
