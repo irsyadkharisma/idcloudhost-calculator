@@ -1,6 +1,12 @@
 import json
 import streamlit as st
 
+from io import BytesIO
+from datetime import datetime
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+from reportlab.lib.units import cm
+
 
 # ----------------------------
 # Page setup
@@ -165,6 +171,105 @@ def auto_switch_to_custom_if_sliders_changed():
 
 
 # ----------------------------
+# PDF Export
+# ----------------------------
+def build_pdf_report(data: dict) -> bytes:
+    """
+    data keys expected:
+    - exported_at_str
+    - product_type
+    - preset_label
+    - users_per_hour
+    - session_seconds
+    - concurrent_users
+    - recommendation
+    - cpu, ram, storage
+    - cpu_type
+    - billing
+    - base_price, vat_price, total_price
+    - unit_label
+    - max_duration_seconds
+    """
+    buf = BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    width, height = A4
+
+    margin_x = 2 * cm
+    y = height - 2 * cm
+
+    # Header / Kop
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(margin_x, y, "DATA LAB INDONESIA (DLI)")
+    c.setFont("Helvetica", 10)
+    c.drawString(margin_x, y - 14, "Estimasi spesifikasi dan biaya infrastruktur digital")
+    c.setFont("Helvetica", 9)
+    c.drawRightString(width - margin_x, y, f"Tanggal Export: {data['exported_at_str']}")
+    c.setStrokeColorRGB(0.2, 0.2, 0.2)
+    c.line(margin_x, y - 22, width - margin_x, y - 22)
+
+    y -= 45
+
+    def row(label: str, value: str, y_pos: float):
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(margin_x, y_pos, label)
+        c.setFont("Helvetica", 10)
+        c.drawString(margin_x + 6.4 * cm, y_pos, value)
+
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(margin_x, y, "Ringkasan Estimasi")
+    y -= 18
+
+    row("Tipe Produk", str(data["product_type"]), y); y -= 14
+    row("Preset", str(data["preset_label"]), y); y -= 14
+    row("User per Jam", f"{int(data['users_per_hour']):,}", y); y -= 14
+    row("Durasi Sesi (detik)", f"{int(data['session_seconds']):,}", y); y -= 14
+    row("Concurrent Users (CU)", f"~{int(data['concurrent_users']):,}", y); y -= 16
+
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(margin_x, y, "Saran Spesifikasi")
+    y -= 14
+    c.setFont("Helvetica", 10)
+    rec = str(data["recommendation"])
+    max_chars = 95
+    for i in range(0, len(rec), max_chars):
+        c.drawString(margin_x, y, rec[i:i + max_chars])
+        y -= 12
+
+    y -= 6
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(margin_x, y, "Konfigurasi & Biaya")
+    y -= 18
+
+    row("CPU / RAM / Storage", f"{data['cpu']} vCPU / {data['ram']} GB / {data['storage']} GB", y); y -= 14
+    row("Tipe CPU", str(data["cpu_type"]), y); y -= 14
+    row("Periode", str(data["billing"]), y); y -= 14
+    row("Biaya Dasar", f"Rp {int(data['base_price']):,}{data['unit_label']}", y); y -= 14
+    row("Biaya + PPN (11%)", f"Rp {int(data['vat_price']):,}{data['unit_label']}", y); y -= 14
+    row("Biaya Total (Final)", f"Rp {int(data['total_price']):,}{data['unit_label']}", y); y -= 18
+
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(margin_x, y, "Rumus Dasar")
+    y -= 12
+    c.setFont("Helvetica", 10)
+    c.drawString(margin_x, y, "CU = (User per Jam × Durasi Sesi (detik)) / 3600")
+    y -= 12
+    c.setFont("Helvetica", 9)
+    c.drawString(margin_x, y, f"Catatan: Durasi sesi dibatasi (timeout) maks {int(data['max_duration_seconds']):,} detik.")
+    y -= 24
+
+    # Footer
+    c.setStrokeColorRGB(0.8, 0.8, 0.8)
+    c.line(margin_x, 2.2 * cm, width - margin_x, 2.2 * cm)
+    c.setFont("Helvetica", 9)
+    c.drawString(margin_x, 1.7 * cm, "by Data Lab Indonesia")
+    c.drawRightString(width - margin_x, 1.7 * cm, "Generated via Smart Estimator")
+
+    c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
+# ----------------------------
 # Main UI (single page)
 # ----------------------------
 st.title("Estimasi spesifikasi dan biaya infrastruktur digital")
@@ -172,6 +277,10 @@ st.title("Estimasi spesifikasi dan biaya infrastruktur digital")
 # Load CPU type coefficients
 with open("data/cloud_vps_coeff.json") as f:
     cloud_vps_data = json.load(f)
+
+# We store these for export later
+rec_text = ""
+concurrent = 0
 
 # ===== Smart Estimator =====
 with st.expander("🔎 Belum tahu butuh spek apa? Gunakan Smart Estimator", expanded=True):
@@ -202,7 +311,6 @@ with st.expander("🔎 Belum tahu butuh spek apa? Gunakan Smart Estimator", expa
     st.markdown("### Beban Aplikasi")
 
     # Timeout / maximum duration
-    # Set default to 3600 seconds (1 hour). You can change this.
     max_duration_seconds = 3600
 
     c1, c2 = st.columns(2, gap="large")
@@ -224,6 +332,31 @@ with st.expander("🔎 Belum tahu butuh spek apa? Gunakan Smart Estimator", expa
             key="session_seconds",
         )
 
+    st.markdown(
+        r"""
+        ### 📐 Penjelasan Perhitungan
+
+        **Rumus Concurrent Users (CU):**
+        \[
+        CU = \frac{\text{User per Jam} \times \text{Durasi Sesi (detik)}}{3600}
+        \]
+
+        **Estimasi RAM:**
+        \[
+        RAM = RAM_{dasar} + (CU \times RAM_{per\ request})
+        \]
+
+        - RAM dasar: 1–2 GB (OS + service)
+        - RAM per request: ±16–32 MB (PHP / Node.js ringan)
+
+        **Estimasi CPU:**
+        - 1 vCPU modern ≈ 20–50 request/detik (task ringan)
+        - Untuk trafik tinggi, disarankan **horizontal scaling** dengan load balancer
+
+        ⚠️ *Durasi sesi dibatasi sesuai timeout aplikasi / load balancer agar estimasi tetap realistis.*
+        """,
+        )
+
     # Clamp absurd duration
     if session_seconds > max_duration_seconds:
         st.warning(
@@ -235,6 +368,11 @@ with st.expander("🔎 Belum tahu butuh spek apa? Gunakan Smart Estimator", expa
 
     concurrent = ceil_div(int(users_per_hour * session_seconds), 3600)
     rec_text = recommend_from_concurrency(concurrent, product_type)
+
+    # store for export
+    st.session_state["concurrent"] = concurrent
+    st.session_state["rec_text"] = rec_text
+    st.session_state["max_duration_seconds"] = max_duration_seconds
 
     st.markdown(
         f"""
@@ -357,4 +495,40 @@ st.caption(
 st.info(
     f"Preset aktif: **{st.session_state.get('preset_radio', RADIO_OPTIONS[0])}** | "
     f"Specs: **{cpu} vCPU / {ram} GB RAM / {storage} GB** | CPU Type: **{variant}**"
+)
+
+# ===== Export PDF =====
+st.divider()
+st.subheader("Export PDF")
+
+exported_at = datetime.now()
+exported_at_str = exported_at.strftime("%d-%m-%Y %H:%M:%S")
+
+pdf_bytes = build_pdf_report({
+    "exported_at_str": exported_at_str,
+    "product_type": st.session_state.get("product_type", "Web/Mobile App"),
+    "preset_label": st.session_state.get("preset_radio", "—"),
+    "users_per_hour": st.session_state.get("users_per_hour", 0),
+    "session_seconds": st.session_state.get("session_seconds", 0),
+    "concurrent_users": st.session_state.get("concurrent", concurrent),
+    "recommendation": st.session_state.get("rec_text", rec_text),
+    "cpu": cpu,
+    "ram": ram,
+    "storage": storage,
+    "cpu_type": variant,
+    "billing": billing,
+    "base_price": base_price,
+    "vat_price": vat_price,
+    "total_price": total_price,
+    "unit_label": unit_label,
+    "max_duration_seconds": st.session_state.get("max_duration_seconds", 3600),
+})
+
+filename = f"DLI_Estimasi_Infrastruktur_{exported_at.strftime('%Y%m%d_%H%M%S')}.pdf"
+
+st.download_button(
+    label="📄 Download PDF (by Data Lab Indonesia)",
+    data=pdf_bytes,
+    file_name=filename,
+    mime="application/pdf",
 )
