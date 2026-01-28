@@ -340,30 +340,25 @@ with st.expander("🔎 Belum tahu butuh spek apa? Gunakan Smart Estimator", expa
         unsafe_allow_html=True,
     )
 
-    # Dedicated collapsible explanation under estimator (collapsed by default)
+   # Dedicated collapsible explanation under estimator
     with st.expander("📐 Penjelasan Perhitungan", expanded=False):
-        st.markdown(
-            r"""
-**Rumus Concurrent Users (CU):**  
-\[
-CU = \frac{\text{User per Jam} \times \text{Durasi Sesi (detik)}}{3600}
-\]
-
-**Estimasi RAM:**  
-\[
-RAM = RAM_{dasar} + (CU \times RAM_{per\ request})
-\]
-
-- RAM dasar: 1–2 GB (OS + service)  
-- RAM per request: ±16–32 MB (PHP / Node.js ringan)
-
-**Estimasi CPU:**
-- 1 vCPU modern ≈ 20–50 request/detik (task ringan)  
-- Untuk trafik tinggi, disarankan **horizontal scaling** dengan load balancer  
-
-⚠️ Durasi sesi dibatasi sesuai timeout aplikasi / load balancer agar estimasi tetap realistis.
-            """
-        )
+        st.write("### Metodologi Estimasi")
+        
+        # Using st.latex for better centering and font rendering
+        st.markdown("**Rumus Concurrent Users (CU):**")
+        st.latex(r"CU = \frac{\text{User per Jam} \times \text{Durasi Sesi (detik)}}{3600}")
+        
+        st.markdown("**Estimasi RAM:**")
+        st.latex(r"RAM = RAM_{dasar} + (CU \times RAM_{per\ request})")
+    
+        st.info("""
+        **Parameter Acuan:**
+        * **RAM Dasar:** 1–2 GB (Alokasi OS & Service background).
+        * **RAM per Request:** ±16–32 MB (Standar PHP-FPM atau Node.js).
+        * **Kapasitas CPU:** 1 vCPU modern mampu menangani ≈ 20–50 req/detik.
+        """)
+        
+        st.warning("⚠️ **Catatan:** Durasi sesi dibatasi sesuai timeout agar estimasi tetap realistis.")
 
 st.divider()
 
@@ -513,4 +508,5 @@ st.download_button(
     file_name=filename,
     mime="application/pdf",
 )
+
 
