@@ -428,11 +428,11 @@ base_price = calculate_cloud_vps(cpu, ram, storage, coef)
 
 if billing == "Tahunan":
     base_price *= 12
-    monitoring_fee = 120_000
     unit_label = "/tahun"
 else:
-    monitoring_fee = 10_000
     unit_label = "/bulan"
+
+monitoring_fee = int(base_price * 0.04)
 
 vat_price = base_price * 1.11
 total_price = (base_price + monitoring_fee) * 1.11
@@ -513,3 +513,4 @@ st.download_button(
     file_name=filename,
     mime="application/pdf",
 )
+
