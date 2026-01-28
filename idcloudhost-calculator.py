@@ -278,17 +278,25 @@ st.markdown(f"""
 st.divider()
 
 with st.expander("📐 Penjelasan Perhitungan", expanded=False):
-    st.write("### Metodologi Estimasi")
+    st.markdown("### Metodologi Estimasi")
     
+    # Concurrent Users Section
     st.markdown("**Rumus Concurrent Users (CU):**")
     st.latex(r"CU = \frac{\text{User per Jam} \times \text{Durasi Sesi (detik)}}{3600}")
     
+    # RAM Estimation Section (The missing part)
+    st.markdown("**Estimasi RAM:**")
+    st.latex(r"RAM = RAM_{dasar} + (CU \times RAM_{per\ request})")
+    
+    # Reference Parameters
     st.info("""
     **Parameter Acuan:**
     * **RAM Dasar:** 1–2 GB (Alokasi OS & Service background).
     * **RAM per Request:** ±16–32 MB (Standar PHP-FPM atau Node.js).
     * **Kapasitas CPU:** 1 vCPU modern mampu menangani ≈ 20–50 req/detik.
     """)
+    
+    st.warning("⚠️ **Catatan:** Durasi sesi dibatasi sesuai timeout agar estimasi tetap realistis.")
     
 st.divider()
 if st.button("📄 Buat Lampiran PDF"):
@@ -306,4 +314,5 @@ if st.button("📄 Buat Lampiran PDF"):
         "unit_label": unit_label
     })
     st.download_button("Click to Download", pdf_bytes, "DLI_Report.pdf", "application/pdf")
+
 
