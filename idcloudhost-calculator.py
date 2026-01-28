@@ -267,6 +267,7 @@ st.markdown(f"""
     </div>
 """, unsafe_allow_html=True)
 
+st.divider()
 # Dedicated collapsible explanation under estimator
 with st.expander("📐 Penjelasan Perhitungan", expanded=False):
     st.write("### Metodologi Estimasi")
@@ -309,6 +310,7 @@ st.download_button(
     file_name=f"DLI_Estimasi_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
     mime="application/pdf",
 )
+
 
 
 
