@@ -125,24 +125,96 @@ def auto_switch_to_custom():
 # ----------------------------
 def build_pdf_report(data: dict) -> bytes:
     buf = BytesIO()
-    c = canvas.Canvas(buf, pagesize=landscape(A4))
-    width, height = landscape(A4)
+    page_size = landscape(A4)
+    c = canvas.Canvas(buf, pagesize=page_size)
+    width, height = page_size
+
     margin_x = 2 * cm
-    y = height - 2 * cm
-    c.setFont("Helvetica-Bold", 14); c.drawString(margin_x, y, "DATA LAB INDONESIA (DLI)")
-    c.setFont("Helvetica", 10); c.drawString(margin_x, y - 14, "Estimasi infrastruktur digital")
-    c.drawRightString(width - margin_x, y, f"Tanggal: {data['exported_at_str']}")
-    c.line(margin_x, y - 22, width - margin_x, y - 22)
-    y -= 50
-    def row(l, v, yp):
-        c.setFont("Helvetica-Bold", 10); c.drawString(margin_x, yp, l)
-        c.setFont("Helvetica", 10); c.drawString(margin_x + 7*cm, yp, str(v))
-    row("Preset", data["preset_label"], y); y -= 15
-    row("CU", f"~{data['concurrent_users']}", y); y -= 25
-    row("Spec", f"{data['cpu']} vCPU / {data['ram']} GB RAM", y); y -= 15
-    row("Total", f"Rp {int(data['total_price']):,}{data['unit_label']}", y)
-    c.showPage(); c.save()
+    top_y = height - 2 * cm
+
+    # Column positions (label/value)
+    label_x = margin_x
+    value_x = margin_x + 8.5 * cm  # adjust to taste for alignment
+    right_x = width - margin_x
+
+    # ---- Header
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(margin_x, top_y, "DATA LAB INDONESIA (DLI)")
+
+    c.setFont("Helvetica", 10)
+    c.drawString(margin_x, top_y - 16, "Estimasi spesifikasi dan biaya infrastruktur digital")
+
+    c.setFont("Helvetica", 10)
+    c.drawRightString(right_x, top_y, f"Tanggal Export: {data['exported_at_str']}")
+
+    # Divider line
+    c.setLineWidth(1)
+    c.line(margin_x, top_y - 28, right_x, top_y - 28)
+
+    y = top_y - 55
+
+    def section(title: str):
+        nonlocal y
+        c.setFont("Helvetica-Bold", 13)
+        c.drawString(margin_x, y, title)
+        y -= 18
+
+    def row(label: str, value: str):
+        """One neat label-value row, like the screenshot."""
+        nonlocal y
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(label_x, y, label)
+        c.setFont("Helvetica", 11)
+        c.drawString(value_x, y, str(value))
+        y -= 16
+
+    # ---- Section 1: Ringkasan Estimasi & Beban
+    section("Ringkasan Estimasi & Beban")
+
+    row("Preset", data.get("preset_label", "—"))
+    row("User per Jam", f"{int(data.get('users_per_hour', 0)):,}")
+    row("Durasi Sesi", f"{int(data.get('session_seconds', 0))} detik")
+    row("Concurrent Users", f"~{int(data.get('concurrent_users', 0)):,}")
+
+    y -= 8
+
+    # ---- Section 2: Konfigurasi & Biaya
+    section("Konfigurasi & Biaya")
+
+    cpu = data.get("cpu", 0)
+    ram = data.get("ram", 0)
+    storage = data.get("storage", 0)
+    row("CPU / RAM / Disk", f"{cpu} vCPU / {ram} GB / {storage} GB")
+
+    row("Tipe CPU", data.get("cpu_type", "—"))
+
+    total_price = int(data.get("total_price", 0))
+    unit_label = data.get("unit_label", "")
+    row("Total (Final)", f"Rp {total_price:,}{unit_label}")
+
+    y -= 10
+
+    # ---- Section 3: Metodologi
+    section("Metodologi")
+
+    c.setFont("Helvetica", 11)
+    c.drawString(margin_x, y, "CU = (Users per Jam * Durasi) / 3600")
+    y -= 18
+
+    # Footer (subtle)
+    c.setLineWidth(0.5)
+    c.setStrokeColorRGB(0.75, 0.75, 0.75)
+    c.line(margin_x, 2.2 * cm, right_x, 2.2 * cm)
+
+    c.setFillColorRGB(0.2, 0.2, 0.2)
+    c.setFont("Helvetica", 9)
+    c.drawString(margin_x, 1.7 * cm, "by Data Lab Indonesia")
+    c.drawRightString(right_x, 1.7 * cm, "Generated via Smart Estimator")
+
+    c.showPage()
+    c.save()
     return buf.getvalue()
+
 
 # ----------------------------
 # Main UI
@@ -224,3 +296,4 @@ st.download_button(
     file_name=f"DLI_Estimasi_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
     mime="application/pdf",
 )
+
