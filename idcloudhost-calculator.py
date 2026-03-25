@@ -70,6 +70,13 @@ def recommend_from_concurrency(concurrent: int) -> str:
     return f"{cpu} vCPU / {ram} GB RAM{suffix}"
 
 # ----------------------------
+# Additional Cost Config
+# ----------------------------
+OBJECT_STORAGE_PER_GB_MONTH = 507
+OBJECT_STORAGE_PER_GB_HOUR = 0.694
+DOMAIN_PRICE_YEARLY = 300_000
+
+# ----------------------------
 # Presets Data
 # ----------------------------
 CUSTOM_KEY = "Custom (manual sliders)"
@@ -186,7 +193,17 @@ def build_pdf_report(data: dict) -> bytes:
     storage = data.get("storage", 0)
     row("CPU / RAM / Disk", f"{cpu} vCPU / {ram} GB / {storage} GB")
 
+    object_storage_gb = data.get("object_storage_gb", 0)
+    row("Object Storage", f"{object_storage_gb} GB")
+
     row("Tipe CPU", data.get("cpu_type", "—"))
+
+    row("Biaya VPS Dasar", f"Rp {int(data.get('base_price', 0)):,}{data.get('unit_label', '')}")
+    row("Biaya Object Storage", f"Rp {int(data.get('object_storage_price', 0)):,}{data.get('unit_label', '')}")
+    row("Biaya Domain", f"Rp {int(data.get('domain_price', 0)):,}{data.get('unit_label', '')}")
+    row("Subtotal Pra-Pajak", f"Rp {int(data.get('pre_tax_subtotal', 0)):,}{data.get('unit_label', '')}")
+    row("Monitoring (4%)", f"Rp {int(data.get('monitoring_fee', 0)):,}{data.get('unit_label', '')}")
+    row("PPN (11%)", f"Rp {int(data.get('tax_fee', 0)):,}{data.get('unit_label', '')}")
 
     total_price = int(data.get("total_price", 0))
     unit_label = data.get("unit_label", "")
@@ -223,6 +240,7 @@ if "users_per_hour" not in st.session_state:
     st.session_state["cpu"] = PRESETS[0]["cpu"]
     st.session_state["ram"] = PRESETS[0]["ram"]
     st.session_state["storage"] = PRESETS[0]["storage"]
+    st.session_state["object_storage_gb"] = 100
 
 with st.expander("📁 1. Pilih Preset Infrastruktur", expanded=True):
     st.markdown('<div class="preset-radio">', unsafe_allow_html=True)
@@ -243,13 +261,15 @@ with st.expander("📊 2. Beban Aplikasi (Estimasi Trafik)", expanded=True):
 st.divider()
 
 st.subheader("Customisasi Spesifikasi")
-s1, s2, s3 = st.columns(3)
+s1, s2, s3, s4 = st.columns(4)
 with s1:
     st.slider("CPU (Core)", 1, 32, key="cpu", on_change=auto_switch_to_custom)
 with s2:
     st.slider("RAM (GB)", 1, 128, key="ram", on_change=auto_switch_to_custom)
 with s3:
     st.slider("Storage (GB)", 20, 2000, step=10, key="storage", on_change=auto_switch_to_custom)
+with s4:
+    st.slider("Object Storage (GB)", 0, 10000, step=10, key="object_storage_gb", on_change=auto_switch_to_custom)
 
 variant = st.radio("Tipe CPU", list(cloud_vps_data.keys()), key="variant")
 billing = st.radio("Periode", ["Bulanan", "Tahunan"], horizontal=True, key="billing")
@@ -257,15 +277,42 @@ billing = st.radio("Periode", ["Bulanan", "Tahunan"], horizontal=True, key="bill
 coef = cloud_vps_data[variant]
 base_price = calculate_cloud_vps(st.session_state.cpu, st.session_state.ram, st.session_state.storage, coef)
 unit_label = "/tahun" if billing == "Tahunan" else "/bulan"
-if billing == "Tahunan": base_price *= 12
-total_price = (base_price + int(base_price * 0.04)) * 1.11
+if billing == "Tahunan":
+    base_price *= 12
+    object_storage_price = int(round(st.session_state.object_storage_gb * OBJECT_STORAGE_PER_GB_MONTH * 12))
+    domain_price = DOMAIN_PRICE_YEARLY
+else:
+    object_storage_price = int(round(st.session_state.object_storage_gb * OBJECT_STORAGE_PER_GB_MONTH))
+    domain_price = int(round(DOMAIN_PRICE_YEARLY / 12))
+
+pre_tax_subtotal = base_price + object_storage_price + domain_price
+monitoring_fee = int(pre_tax_subtotal * 0.04)
+tax_fee = int((pre_tax_subtotal + monitoring_fee) * 0.11)
+total_price = pre_tax_subtotal + monitoring_fee + tax_fee
 
 st.markdown(f"""
     <div style='text-align:center; background:#f0f2f6; padding:20px; border-radius:10px;'>
-        <p style='margin:0;'>💰 <b>Biaya Total (PPN 11% + Monitoring 4%)</b></p>
+        <p style='margin:0;'>💰 <b>Biaya Total (VPS + Object Storage + Domain + Monitoring 4% + PPN 11%)</b></p>
         <h2 style='margin:0; color:#1f77b4;'>Rp {int(total_price):,}{unit_label}</h2>
     </div>
 """, unsafe_allow_html=True)
+
+st.caption(
+    f"Tarif Object Storage: Rp {OBJECT_STORAGE_PER_GB_MONTH:,}/GB/bulan "
+    f"(~Rp {OBJECT_STORAGE_PER_GB_HOUR}/GB/jam) | Domain: Rp {DOMAIN_PRICE_YEARLY:,}/tahun (diprorata untuk tampilan bulanan)."
+)
+
+st.markdown(
+    f"""
+    **Rincian biaya:**
+    - VPS dasar: Rp {int(base_price):,}{unit_label}
+    - Object storage: Rp {int(object_storage_price):,}{unit_label}
+    - Domain: Rp {int(domain_price):,}{unit_label}
+    - Subtotal pra-pajak: Rp {int(pre_tax_subtotal):,}{unit_label}
+    - Monitoring 4%: Rp {int(monitoring_fee):,}{unit_label}
+    - PPN 11%: Rp {int(tax_fee):,}{unit_label}
+    """
+)
 
 st.divider()
 # Dedicated collapsible explanation under estimator
@@ -275,9 +322,10 @@ with st.expander("📐 Penjelasan Perhitungan", expanded=False):
     # Using st.latex for better centering and font rendering
     st.markdown("**Rumus Concurrent Users (CU):**")
     st.latex(r"CU = \frac{\text{User per Jam} \times \text{Durasi Sesi (detik)}}{3600}")
-    
-    st.markdown("**Estimasi RAM:**")
-    st.latex(r"RAM = RAM_{dasar} + (CU \times RAM_{per\ request})")
+    st.markdown("**Rumus biaya komponen:**")
+    st.latex(r"Biaya_{objek} = GB_{objek} \times 507")
+    st.latex(r"Subtotal = Biaya_{VPS} + Biaya_{objek} + Biaya_{domain}")
+    st.latex(r"Total = (Subtotal + 4\%\times Subtotal)\times(1 + 11\%)")
 
     st.info("""
     **Parameter Acuan:**
@@ -299,7 +347,14 @@ pdf_bytes = build_pdf_report({
     "cpu": st.session_state.cpu,
     "ram": st.session_state.ram,
     "storage": st.session_state.storage,
+    "object_storage_gb": st.session_state.object_storage_gb,
     "cpu_type": variant,
+    "base_price": base_price,
+    "object_storage_price": object_storage_price,
+    "domain_price": domain_price,
+    "pre_tax_subtotal": pre_tax_subtotal,
+    "monitoring_fee": monitoring_fee,
+    "tax_fee": tax_fee,
     "total_price": total_price,
     "unit_label": unit_label,
 })
