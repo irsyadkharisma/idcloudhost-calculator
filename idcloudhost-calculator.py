@@ -108,6 +108,10 @@ def apply_preset_to_sliders():
         st.session_state["storage"] = p["storage"]
         st.session_state["users_per_hour"] = p["capacity_users"]
         st.session_state["session_seconds"] = p["capacity_duration"]
+        st.session_state["cpu_manual"] = p["cpu"]
+        st.session_state["ram_manual"] = p["ram"]
+        st.session_state["storage_manual"] = p["storage"]
+        st.session_state["object_storage_gb_manual"] = st.session_state.get("object_storage_gb", 100)
 
 def sync_sliders_to_load():
     """Triggered when users manually change traffic numbers"""
@@ -119,6 +123,8 @@ def sync_sliders_to_load():
     new_cpu, new_ram = get_specs_from_concurrency(concurrent)
     st.session_state["cpu"] = new_cpu
     st.session_state["ram"] = new_ram
+    st.session_state["cpu_manual"] = new_cpu
+    st.session_state["ram_manual"] = new_ram
     
     # Switch radio to custom because we are departing from fixed presets
     st.session_state["preset_radio"] = CUSTOM_KEY
@@ -126,6 +132,38 @@ def sync_sliders_to_load():
 def auto_switch_to_custom():
     """Triggered when sliders are moved manually"""
     st.session_state["preset_radio"] = CUSTOM_KEY
+
+def on_cpu_slider_change():
+    auto_switch_to_custom()
+    st.session_state["cpu_manual"] = st.session_state["cpu"]
+
+def on_ram_slider_change():
+    auto_switch_to_custom()
+    st.session_state["ram_manual"] = st.session_state["ram"]
+
+def on_storage_slider_change():
+    auto_switch_to_custom()
+    st.session_state["storage_manual"] = st.session_state["storage"]
+
+def on_object_storage_slider_change():
+    auto_switch_to_custom()
+    st.session_state["object_storage_gb_manual"] = st.session_state["object_storage_gb"]
+
+def on_cpu_manual_change():
+    auto_switch_to_custom()
+    st.session_state["cpu"] = st.session_state["cpu_manual"]
+
+def on_ram_manual_change():
+    auto_switch_to_custom()
+    st.session_state["ram"] = st.session_state["ram_manual"]
+
+def on_storage_manual_change():
+    auto_switch_to_custom()
+    st.session_state["storage"] = st.session_state["storage_manual"]
+
+def on_object_storage_manual_change():
+    auto_switch_to_custom()
+    st.session_state["object_storage_gb"] = st.session_state["object_storage_gb_manual"]
 
 # ----------------------------
 # PDF Export
@@ -241,6 +279,11 @@ if "users_per_hour" not in st.session_state:
     st.session_state["ram"] = PRESETS[0]["ram"]
     st.session_state["storage"] = PRESETS[0]["storage"]
     st.session_state["object_storage_gb"] = 100
+    st.session_state["cpu_manual"] = PRESETS[0]["cpu"]
+    st.session_state["ram_manual"] = PRESETS[0]["ram"]
+    st.session_state["storage_manual"] = PRESETS[0]["storage"]
+    st.session_state["object_storage_gb_manual"] = 100
+    st.session_state["manual_override"] = False
 
 with st.expander("📁 1. Pilih Preset Infrastruktur", expanded=True):
     st.markdown('<div class="preset-radio">', unsafe_allow_html=True)
@@ -263,13 +306,25 @@ st.divider()
 st.subheader("Customisasi Spesifikasi")
 s1, s2, s3, s4 = st.columns(4)
 with s1:
-    st.slider("CPU (Core)", 1, 32, key="cpu", on_change=auto_switch_to_custom)
+    st.slider("CPU (Core)", 1, 32, key="cpu", on_change=on_cpu_slider_change)
 with s2:
-    st.slider("RAM (GB)", 1, 128, key="ram", on_change=auto_switch_to_custom)
+    st.slider("RAM (GB)", 1, 128, key="ram", on_change=on_ram_slider_change)
 with s3:
-    st.slider("Storage (GB)", 20, 2000, step=10, key="storage", on_change=auto_switch_to_custom)
+    st.slider("Storage (GB)", 20, 2000, step=10, key="storage", on_change=on_storage_slider_change)
 with s4:
-    st.slider("Object Storage (GB)", 0, 10000, step=10, key="object_storage_gb", on_change=auto_switch_to_custom)
+    st.slider("Object Storage (GB)", 0, 10000, step=10, key="object_storage_gb", on_change=on_object_storage_slider_change)
+
+st.toggle("Manual type override", key="manual_override")
+if st.session_state.manual_override:
+    m1, m2, m3, m4 = st.columns(4)
+    with m1:
+        st.number_input("CPU (manual)", min_value=1, max_value=32, key="cpu_manual", on_change=on_cpu_manual_change)
+    with m2:
+        st.number_input("RAM (manual)", min_value=1, max_value=128, key="ram_manual", on_change=on_ram_manual_change)
+    with m3:
+        st.number_input("Storage (manual)", min_value=20, max_value=2000, step=10, key="storage_manual", on_change=on_storage_manual_change)
+    with m4:
+        st.number_input("Object Storage (manual)", min_value=0, max_value=10000, step=10, key="object_storage_gb_manual", on_change=on_object_storage_manual_change)
 
 variant = st.radio("Tipe CPU", list(cloud_vps_data.keys()), key="variant")
 billing = st.radio("Periode", ["Bulanan", "Tahunan"], horizontal=True, key="billing")
