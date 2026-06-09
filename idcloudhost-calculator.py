@@ -105,6 +105,24 @@ DOMAIN_PRICES_YEARLY = {
     ".id": {"Register": 210_000, "Renewal": 210_000, "Transfer": 210_000},
     ".co.id": {"Register": 270_000, "Renewal": 300_000, "Transfer": 300_000},
     ".net.id": {"Register": 400_000, "Renewal": 400_000, "Transfer": 400_000},
+    ".top": {"Register": 121_000, "Renewal": 121_000, "Transfer": 121_000},
+    ".xyz": {"Register": 292_000, "Renewal": 292_000, "Transfer": 292_000},
+    ".asia": {"Register": 235_000, "Renewal": 235_000, "Transfer": 235_000},
+    ".icu": {"Register": 287_300, "Renewal": 287_300, "Transfer": 287_300},
+    ".com": {"Register": 160_000, "Renewal": 185_000, "Transfer": 185_000},
+    ".click": {"Register": 190_000, "Renewal": 190_000, "Transfer": 190_000},
+    ".net": {"Register": 295_000, "Renewal": 295_000, "Transfer": 295_000},
+    ".org": {"Register": 230_000, "Renewal": 230_000, "Transfer": 230_000},
+    ".info": {"Register": 451_000, "Renewal": 451_000, "Transfer": 451_000},
+    ".vip": {"Register": 311_000, "Renewal": 311_000, "Transfer": 311_000},
+    ".website": {"Register": 640_000, "Renewal": 640_000, "Transfer": 640_000},
+    ".pw": {"Register": 415_000, "Renewal": 415_000, "Transfer": 415_000},
+    ".space": {"Register": 640_000, "Renewal": 640_000, "Transfer": 640_000},
+    ".co": {"Register": 641_000, "Renewal": 641_000, "Transfer": 641_000},
+    ".site": {"Register": 721_000, "Renewal": 721_000, "Transfer": 721_000},
+    ".com.sg": {"Register": 800_000, "Renewal": 800_000, "Transfer": 800_000},
+    ".design": {"Register": 1_150_000, "Renewal": 1_150_000, "Transfer": 1_150_000},
+    ".io": {"Register": 1_500_000, "Renewal": 1_500_000, "Transfer": 1_500_000},
 }
 
 def get_domain_extension(domain_name: str) -> str:
@@ -360,6 +378,7 @@ def build_pdf_report(data: dict) -> bytes:
     row("Subtotal Pra-Pajak", f"Rp {int(data.get('pre_tax_subtotal', 0)):,}{data.get('unit_label', '')}")
     row("Monitoring (4%)", f"Rp {int(data.get('monitoring_fee', 0)):,}{data.get('unit_label', '')}")
     row("PPN (11%)", f"Rp {int(data.get('tax_fee', 0)):,}{data.get('unit_label', '')}")
+    row("Buffer Budget", f"Rp {int(data.get('buffer_amount', 0)):,}{data.get('unit_label', '')}")
 
     total_price = int(data.get("total_price", 0))
     unit_label = data.get("unit_label", "")
@@ -502,6 +521,27 @@ else:
 variant = st.radio("Tipe CPU", list(cloud_vps_data.keys()), key="variant")
 billing = st.radio("Periode", ["Bulanan", "Tahunan"], horizontal=True, key="billing")
 
+st.subheader("Buffer Budget")
+b1, b2 = st.columns(2)
+with b1:
+    buffer_percent = st.number_input(
+        "Buffer tambahan (%)",
+        min_value=0.0,
+        max_value=100.0,
+        value=0.0,
+        step=1.0,
+        help="Contoh: 10 berarti total ditambah 10% untuk cadangan budget.",
+    )
+with b2:
+    buffer_months = st.number_input(
+        "Buffer bulan berjalan",
+        min_value=0.0,
+        max_value=12.0,
+        value=0.0,
+        step=0.5,
+        help="Contoh: 1 berarti menambah cadangan sebesar 1 bulan biaya berjalan.",
+    )
+
 coef = cloud_vps_data[variant]
 base_price = calculate_cloud_vps(st.session_state.cpu, st.session_state.ram, st.session_state.storage, coef)
 unit_label = "/tahun" if billing == "Tahunan" else "/bulan"
@@ -523,11 +563,14 @@ domain_price = sum(domain["period_price"] for domain in domain_cost_items)
 pre_tax_subtotal = base_price + object_storage_price + domain_price
 monitoring_fee = int(pre_tax_subtotal * 0.04)
 tax_fee = int((pre_tax_subtotal + monitoring_fee) * 0.11)
-total_price = pre_tax_subtotal + monitoring_fee + tax_fee
+total_before_buffer = pre_tax_subtotal + monitoring_fee + tax_fee
+monthly_total_before_buffer = total_before_buffer / 12 if billing == "Tahunan" else total_before_buffer
+buffer_amount = int(round((total_before_buffer * (buffer_percent / 100)) + (monthly_total_before_buffer * buffer_months)))
+total_price = total_before_buffer + buffer_amount
 
 st.markdown(f"""
     <div style='text-align:center; background:#f0f2f6; padding:20px; border-radius:10px;'>
-        <p style='margin:0;'>💰 <b>Biaya Total (VPS + Object Storage + Domain + Monitoring 4% + PPN 11%)</b></p>
+        <p style='margin:0;'>💰 <b>Biaya Total (VPS + Object Storage + Domain + Monitoring 4% + PPN 11% + Buffer)</b></p>
         <h2 style='margin:0; color:#1f77b4;'>Rp {int(total_price):,}{unit_label}</h2>
     </div>
 """, unsafe_allow_html=True)
@@ -548,6 +591,8 @@ else:
 st.write(f"- Subtotal pra-pajak: Rp {int(pre_tax_subtotal):,}{unit_label}")
 st.write(f"- Monitoring 4%: Rp {int(monitoring_fee):,}{unit_label}")
 st.write(f"- PPN 11%: Rp {int(tax_fee):,}{unit_label}")
+st.write(f"- Total sebelum buffer: Rp {int(total_before_buffer):,}{unit_label}")
+st.write(f"- Buffer budget ({buffer_percent:g}% + {buffer_months:g} bulan berjalan): Rp {int(buffer_amount):,}{unit_label}")
 
 st.divider()
 # Dedicated collapsible explanation under estimator
@@ -561,7 +606,8 @@ with st.expander("📐 Penjelasan Perhitungan", expanded=False):
     st.latex(r"Biaya_{objek} = GB_{objek} \times 507")
     st.latex(r"Biaya_{domain} = \sum Harga_{domain\ per\ ekstensi}")
     st.latex(r"Subtotal = Biaya_{VPS} + Biaya_{objek} + Biaya_{domain}")
-    st.latex(r"Total = (Subtotal + 4\%\times Subtotal)\times(1 + 11\%)")
+    st.latex(r"Total_{sebelum\ buffer} = (Subtotal + 4\%\times Subtotal)\times(1 + 11\%)")
+    st.latex(r"Buffer = (Total_{sebelum\ buffer}\times Persen_{buffer}) + (Biaya_{bulanan}\times Bulan_{buffer})")
 
     st.info("""
     **Parameter Acuan:**
@@ -593,6 +639,7 @@ pdf_bytes = build_pdf_report({
     "pre_tax_subtotal": pre_tax_subtotal,
     "monitoring_fee": monitoring_fee,
     "tax_fee": tax_fee,
+    "buffer_amount": buffer_amount,
     "total_price": total_price,
     "unit_label": unit_label,
 })
