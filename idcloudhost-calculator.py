@@ -64,6 +64,24 @@ def get_specs_from_concurrency(concurrent: int):
     else:
         return 8, 32
 
+SPEC_LOAD_RULES = [
+    {"cpu": 1, "ram": 1, "users_per_hour": 600, "session_seconds": 60},
+    {"cpu": 1, "ram": 2, "users_per_hour": 1200, "session_seconds": 60},
+    {"cpu": 2, "ram": 4, "users_per_hour": 3600, "session_seconds": 60},
+    {"cpu": 4, "ram": 8, "users_per_hour": 9000, "session_seconds": 60},
+    {"cpu": 8, "ram": 16, "users_per_hour": 36000, "session_seconds": 40},
+    {"cpu": 8, "ram": 32, "users_per_hour": 45000, "session_seconds": 40},
+]
+
+def get_load_from_specs(cpu: int, ram: int) -> tuple[int, int]:
+    """Estimate traffic inputs from the selected CPU/RAM."""
+    matching_rules = [
+        rule for rule in SPEC_LOAD_RULES
+        if cpu >= rule["cpu"] and ram >= rule["ram"]
+    ]
+    selected = matching_rules[-1] if matching_rules else SPEC_LOAD_RULES[0]
+    return selected["users_per_hour"], selected["session_seconds"]
+
 def recommend_from_concurrency(concurrent: int) -> str:
     cpu, ram = get_specs_from_concurrency(concurrent)
     suffix = " (atau lebih)" if concurrent > 400 else ""
@@ -133,13 +151,23 @@ def auto_switch_to_custom():
     """Triggered when sliders are moved manually"""
     st.session_state["preset_radio"] = CUSTOM_KEY
 
+def sync_load_to_specs():
+    users_per_hour, session_seconds = get_load_from_specs(
+        int(st.session_state.get("cpu", 1)),
+        int(st.session_state.get("ram", 1)),
+    )
+    st.session_state["users_per_hour"] = users_per_hour
+    st.session_state["session_seconds"] = session_seconds
+
 def on_cpu_slider_change():
     auto_switch_to_custom()
     st.session_state["cpu_manual"] = st.session_state["cpu"]
+    sync_load_to_specs()
 
 def on_ram_slider_change():
     auto_switch_to_custom()
     st.session_state["ram_manual"] = st.session_state["ram"]
+    sync_load_to_specs()
 
 def on_storage_slider_change():
     auto_switch_to_custom()
@@ -152,10 +180,12 @@ def on_object_storage_slider_change():
 def on_cpu_manual_change():
     auto_switch_to_custom()
     st.session_state["cpu"] = st.session_state["cpu_manual"]
+    sync_load_to_specs()
 
 def on_ram_manual_change():
     auto_switch_to_custom()
     st.session_state["ram"] = st.session_state["ram_manual"]
+    sync_load_to_specs()
 
 def on_storage_manual_change():
     auto_switch_to_custom()
@@ -164,6 +194,21 @@ def on_storage_manual_change():
 def on_object_storage_manual_change():
     auto_switch_to_custom()
     st.session_state["object_storage_gb"] = st.session_state["object_storage_gb_manual"]
+
+def add_domain():
+    domain_name = st.session_state.get("domain_name_input", "").strip()
+    if not domain_name:
+        return
+
+    domains = st.session_state.setdefault("domains", [])
+    if domain_name not in domains:
+        domains.append(domain_name)
+    st.session_state["domain_name_input"] = ""
+
+def remove_domain(index: int):
+    domains = st.session_state.get("domains", [])
+    if 0 <= index < len(domains):
+        st.session_state["domains"] = domains[:index] + domains[index + 1:]
 
 # ----------------------------
 # PDF Export
@@ -235,6 +280,9 @@ def build_pdf_report(data: dict) -> bytes:
     row("Object Storage", f"{object_storage_gb} GB")
 
     row("Tipe CPU", data.get("cpu_type", "—"))
+    domains = data.get("domains", [])
+    domain_label = ", ".join(domains) if domains else "Tidak ada"
+    row("Domain", domain_label)
 
     row("Biaya VPS Dasar", f"Rp {int(data.get('base_price', 0)):,}{data.get('unit_label', '')}")
     row("Biaya Object Storage", f"Rp {int(data.get('object_storage_price', 0)):,}{data.get('unit_label', '')}")
@@ -284,6 +332,7 @@ if "users_per_hour" not in st.session_state:
     st.session_state["storage_manual"] = PRESETS[0]["storage"]
     st.session_state["object_storage_gb_manual"] = 100
     st.session_state["manual_override"] = False
+    st.session_state["domains"] = []
 
 with st.expander("📁 1. Pilih Preset Infrastruktur", expanded=True):
     st.markdown('<div class="preset-radio">', unsafe_allow_html=True)
@@ -326,19 +375,43 @@ if st.session_state.manual_override:
     with m4:
         st.number_input("Object Storage (manual)", min_value=0, max_value=10000, step=10, key="object_storage_gb_manual", on_change=on_object_storage_manual_change)
 
+st.subheader("Domain")
+d1, d2 = st.columns([3, 1])
+with d1:
+    st.text_input("Nama domain", placeholder="contoh: datalab.co.id", key="domain_name_input")
+with d2:
+    st.write("")
+    st.button("Tambah Domain", on_click=add_domain, use_container_width=True)
+
+domains = st.session_state.get("domains", [])
+if domains:
+    for index, domain_name in enumerate(domains):
+        row_cols = st.columns([4, 1])
+        row_cols[0].write(domain_name)
+        row_cols[1].button(
+            "Hapus",
+            key=f"remove_domain_{index}",
+            on_click=remove_domain,
+            args=(index,),
+            use_container_width=True,
+        )
+else:
+    st.caption("Belum ada domain yang ditambahkan.")
+
 variant = st.radio("Tipe CPU", list(cloud_vps_data.keys()), key="variant")
 billing = st.radio("Periode", ["Bulanan", "Tahunan"], horizontal=True, key="billing")
 
 coef = cloud_vps_data[variant]
 base_price = calculate_cloud_vps(st.session_state.cpu, st.session_state.ram, st.session_state.storage, coef)
 unit_label = "/tahun" if billing == "Tahunan" else "/bulan"
+domain_count = len(st.session_state.get("domains", []))
 if billing == "Tahunan":
     base_price *= 12
     object_storage_price = int(round(st.session_state.object_storage_gb * OBJECT_STORAGE_PER_GB_MONTH * 12))
-    domain_price = DOMAIN_PRICE_YEARLY
+    domain_price = DOMAIN_PRICE_YEARLY * domain_count
 else:
     object_storage_price = int(round(st.session_state.object_storage_gb * OBJECT_STORAGE_PER_GB_MONTH))
-    domain_price = int(round(DOMAIN_PRICE_YEARLY / 12))
+    domain_price = int(round((DOMAIN_PRICE_YEARLY / 12) * domain_count))
 
 pre_tax_subtotal = base_price + object_storage_price + domain_price
 monitoring_fee = int(pre_tax_subtotal * 0.04)
@@ -354,7 +427,7 @@ st.markdown(f"""
 
 st.caption(
     f"Tarif Object Storage: Rp {OBJECT_STORAGE_PER_GB_MONTH:,}/GB/bulan "
-    f"(~Rp {OBJECT_STORAGE_PER_GB_HOUR}/GB/jam) | Domain: Rp {DOMAIN_PRICE_YEARLY:,}/tahun (diprorata untuk tampilan bulanan)."
+    f"(~Rp {OBJECT_STORAGE_PER_GB_HOUR}/GB/jam) | Domain: Rp {DOMAIN_PRICE_YEARLY:,}/tahun/domain (diprorata untuk tampilan bulanan)."
 )
 
 st.markdown(
@@ -362,7 +435,7 @@ st.markdown(
     **Rincian biaya:**
     - VPS dasar: Rp {int(base_price):,}{unit_label}
     - Object storage: Rp {int(object_storage_price):,}{unit_label}
-    - Domain: Rp {int(domain_price):,}{unit_label}
+    - Domain ({domain_count} domain): Rp {int(domain_price):,}{unit_label}
     - Subtotal pra-pajak: Rp {int(pre_tax_subtotal):,}{unit_label}
     - Monitoring 4%: Rp {int(monitoring_fee):,}{unit_label}
     - PPN 11%: Rp {int(tax_fee):,}{unit_label}
@@ -379,6 +452,7 @@ with st.expander("📐 Penjelasan Perhitungan", expanded=False):
     st.latex(r"CU = \frac{\text{User per Jam} \times \text{Durasi Sesi (detik)}}{3600}")
     st.markdown("**Rumus biaya komponen:**")
     st.latex(r"Biaya_{objek} = GB_{objek} \times 507")
+    st.latex(r"Biaya_{domain} = Jumlah_{domain} \times 300000")
     st.latex(r"Subtotal = Biaya_{VPS} + Biaya_{objek} + Biaya_{domain}")
     st.latex(r"Total = (Subtotal + 4\%\times Subtotal)\times(1 + 11\%)")
 
@@ -403,6 +477,7 @@ pdf_bytes = build_pdf_report({
     "ram": st.session_state.ram,
     "storage": st.session_state.storage,
     "object_storage_gb": st.session_state.object_storage_gb,
+    "domains": st.session_state.get("domains", []),
     "cpu_type": variant,
     "base_price": base_price,
     "object_storage_price": object_storage_price,
