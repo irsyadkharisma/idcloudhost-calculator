@@ -367,8 +367,7 @@ def build_pdf_report(data: dict) -> bytes:
     ) if domains else "Tidak ada"
     row("Domain", domain_label)
 
-    pdf_base_price = int(data.get("base_price", 0)) + int(data.get("buffer_amount", 0))
-    row("Biaya VPS Dasar", f"Rp {pdf_base_price:,}{data.get('unit_label', '')}")
+    row("Biaya VPS Dasar", f"Rp {int(data.get('base_price', 0)):,}{data.get('unit_label', '')}")
     row("Biaya Object Storage", f"Rp {int(data.get('object_storage_price', 0)):,}{data.get('unit_label', '')}")
     if domains:
         for domain in domains:
@@ -376,8 +375,7 @@ def build_pdf_report(data: dict) -> bytes:
             row(f"Domain {domain['name']}", f"Rp {domain_period_price:,}{data.get('unit_label', '')}")
     else:
         row("Biaya Domain", f"Rp {int(data.get('domain_price', 0)):,}{data.get('unit_label', '')}")
-    pdf_pre_tax_subtotal = int(data.get("pre_tax_subtotal", 0)) + int(data.get("buffer_amount", 0))
-    row("Subtotal Pra-Pajak", f"Rp {pdf_pre_tax_subtotal:,}{data.get('unit_label', '')}")
+    row("Subtotal Pra-Pajak", f"Rp {int(data.get('pre_tax_subtotal', 0)):,}{data.get('unit_label', '')}")
     row("Monitoring (4%)", f"Rp {int(data.get('monitoring_fee', 0)):,}{data.get('unit_label', '')}")
     row("PPN (11%)", f"Rp {int(data.get('tax_fee', 0)):,}{data.get('unit_label', '')}")
 
@@ -522,35 +520,17 @@ else:
 variant = st.radio("Tipe CPU", list(cloud_vps_data.keys()), key="variant")
 billing = st.radio("Periode", ["Bulanan", "Tahunan"], horizontal=True, key="billing")
 
-st.subheader("Buffer Budget")
-b1, b2 = st.columns(2)
-with b1:
-    buffer_percent = st.number_input(
-        "Buffer tambahan (%)",
-        min_value=0.0,
-        max_value=100.0,
-        value=0.0,
-        step=1.0,
-        help="Contoh: 10 berarti total ditambah 10% untuk cadangan budget.",
-    )
-with b2:
-    buffer_months = st.number_input(
-        "Buffer bulan berjalan",
-        min_value=0.0,
-        max_value=12.0,
-        value=0.0,
-        step=0.5,
-        help="Contoh: 1 berarti menambah cadangan sebesar 1 bulan biaya berjalan.",
-    )
-
 coef = cloud_vps_data[variant]
-base_price = calculate_cloud_vps(st.session_state.cpu, st.session_state.ram, st.session_state.storage, coef)
+monthly_base_price = calculate_cloud_vps(st.session_state.cpu, st.session_state.ram, st.session_state.storage, coef)
 unit_label = "/tahun" if billing == "Tahunan" else "/bulan"
 domains = [normalize_domain_entry(domain) for domain in st.session_state.get("domains", [])]
 if billing == "Tahunan":
-    base_price *= 12
+    vps_reserve_price = monthly_base_price
+    base_price = (monthly_base_price * 12) + vps_reserve_price
     object_storage_price = int(round(st.session_state.object_storage_gb * OBJECT_STORAGE_PER_GB_MONTH * 12))
 else:
+    vps_reserve_price = int(round(monthly_base_price / 12))
+    base_price = monthly_base_price + vps_reserve_price
     object_storage_price = int(round(st.session_state.object_storage_gb * OBJECT_STORAGE_PER_GB_MONTH))
 domain_cost_items = [
     {
@@ -564,21 +544,19 @@ domain_price = sum(domain["period_price"] for domain in domain_cost_items)
 pre_tax_subtotal = base_price + object_storage_price + domain_price
 monitoring_fee = int(pre_tax_subtotal * 0.04)
 tax_fee = int((pre_tax_subtotal + monitoring_fee) * 0.11)
-total_before_buffer = pre_tax_subtotal + monitoring_fee + tax_fee
-monthly_total_before_buffer = total_before_buffer / 12 if billing == "Tahunan" else total_before_buffer
-buffer_amount = int(round((total_before_buffer * (buffer_percent / 100)) + (monthly_total_before_buffer * buffer_months)))
-total_price = total_before_buffer + buffer_amount
+total_price = pre_tax_subtotal + monitoring_fee + tax_fee
 
 st.markdown(f"""
     <div style='text-align:center; background:#f0f2f6; padding:20px; border-radius:10px;'>
-        <p style='margin:0;'>💰 <b>Biaya Total (VPS + Object Storage + Domain + Monitoring 4% + PPN 11% + Buffer)</b></p>
+        <p style='margin:0;'>💰 <b>Biaya Total (VPS + Object Storage + Domain + Monitoring 4% + PPN 11%)</b></p>
         <h2 style='margin:0; color:#1f77b4;'>Rp {int(total_price):,}{unit_label}</h2>
     </div>
 """, unsafe_allow_html=True)
 
 st.caption(
     f"Tarif Object Storage: Rp {OBJECT_STORAGE_PER_GB_MONTH:,}/GB/bulan "
-    f"(~Rp {OBJECT_STORAGE_PER_GB_HOUR}/GB/jam) | Domain mengikuti ekstensi dan jenis domain yang dipilih."
+    f"(~Rp {OBJECT_STORAGE_PER_GB_HOUR}/GB/jam) | Domain mengikuti ekstensi dan jenis domain yang dipilih. "
+    f"VPS dasar otomatis mencakup cadangan 1 bulan per tahun, diprorata untuk bulanan."
 )
 
 st.markdown("**Rincian biaya:**")
@@ -592,8 +570,6 @@ else:
 st.write(f"- Subtotal pra-pajak: Rp {int(pre_tax_subtotal):,}{unit_label}")
 st.write(f"- Monitoring 4%: Rp {int(monitoring_fee):,}{unit_label}")
 st.write(f"- PPN 11%: Rp {int(tax_fee):,}{unit_label}")
-st.write(f"- Total sebelum buffer: Rp {int(total_before_buffer):,}{unit_label}")
-st.write(f"- Buffer budget ({buffer_percent:g}% + {buffer_months:g} bulan berjalan): Rp {int(buffer_amount):,}{unit_label}")
 
 st.divider()
 # Dedicated collapsible explanation under estimator
@@ -604,11 +580,11 @@ with st.expander("📐 Penjelasan Perhitungan", expanded=False):
     st.markdown("**Rumus Concurrent Users (CU):**")
     st.latex(r"CU = \frac{\text{User per Jam} \times \text{Durasi Sesi (detik)}}{3600}")
     st.markdown("**Rumus biaya komponen:**")
+    st.latex(r"Biaya_{VPS} = Biaya_{VPS\ normal} + Cadangan_{VPS}")
     st.latex(r"Biaya_{objek} = GB_{objek} \times 507")
     st.latex(r"Biaya_{domain} = \sum Harga_{domain\ per\ ekstensi}")
     st.latex(r"Subtotal = Biaya_{VPS} + Biaya_{objek} + Biaya_{domain}")
-    st.latex(r"Total_{sebelum\ buffer} = (Subtotal + 4\%\times Subtotal)\times(1 + 11\%)")
-    st.latex(r"Buffer = (Total_{sebelum\ buffer}\times Persen_{buffer}) + (Biaya_{bulanan}\times Bulan_{buffer})")
+    st.latex(r"Total = (Subtotal + 4\%\times Subtotal)\times(1 + 11\%)")
 
     st.info("""
     **Parameter Acuan:**
@@ -640,7 +616,6 @@ pdf_bytes = build_pdf_report({
     "pre_tax_subtotal": pre_tax_subtotal,
     "monitoring_fee": monitoring_fee,
     "tax_fee": tax_fee,
-    "buffer_amount": buffer_amount,
     "total_price": total_price,
     "unit_label": unit_label,
 })
@@ -651,9 +626,6 @@ st.download_button(
     file_name=f"DLI_Estimasi_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
     mime="application/pdf",
 )
-
-
-
 
 
 
