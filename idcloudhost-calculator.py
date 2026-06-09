@@ -252,13 +252,17 @@ def set_domain_action(index: int, action: str):
         domains[index] = normalize_domain_entry({"name": domains[index]["name"], "action": action})
         st.session_state["domains"] = domains
 
+def set_new_domain_action(action: str):
+    st.session_state["new_domain_action"] = action
+
 def add_domain():
     domain_name = st.session_state.get("domain_name_input", "").strip()
     if not domain_name:
         return
 
     domains = st.session_state.setdefault("domains", [])
-    domain_entry = normalize_domain_entry({"name": domain_name, "action": "Register"})
+    action = st.session_state.get("new_domain_action", "Register")
+    domain_entry = normalize_domain_entry({"name": domain_name, "action": action})
     if not any(normalize_domain_entry(existing)["name"].lower() == domain_name.lower() for existing in domains):
         domains.append(domain_entry)
     st.session_state["domain_name_input"] = ""
@@ -399,6 +403,10 @@ if "users_per_hour" not in st.session_state:
     st.session_state["object_storage_gb_manual"] = 100
     st.session_state["manual_override"] = False
     st.session_state["domains"] = []
+    st.session_state["new_domain_action"] = "Register"
+
+if "new_domain_action" not in st.session_state:
+    st.session_state["new_domain_action"] = "Register"
 
 with st.expander("📁 1. Pilih Preset Infrastruktur", expanded=True):
     st.markdown('<div class="preset-radio">', unsafe_allow_html=True)
@@ -442,6 +450,20 @@ if st.session_state.manual_override:
         st.number_input("Object Storage (manual)", min_value=0, max_value=10000, step=10, key="object_storage_gb_manual", on_change=on_object_storage_manual_change)
 
 st.subheader("Domain")
+st.write("Jenis domain baru")
+new_domain_action = st.session_state.get("new_domain_action", "Register")
+new_action_cols = st.columns(3)
+for action_index, action in enumerate(DOMAIN_ACTION_OPTIONS):
+    new_action_cols[action_index].button(
+        action,
+        key=f"new_domain_{action.lower()}",
+        on_click=set_new_domain_action,
+        args=(action,),
+        type="primary" if new_domain_action == action else "secondary",
+        use_container_width=True,
+    )
+st.caption(f"Domain baru akan ditambahkan sebagai: {new_domain_action}")
+
 d1, d2 = st.columns([3, 1])
 with d1:
     st.text_input("Nama domain", placeholder="contoh: datalab.co.id", key="domain_name_input")
