@@ -444,14 +444,8 @@ if st.session_state.manual_override:
         st.number_input("Object Storage (manual)", min_value=0, max_value=10000, step=10, key="object_storage_gb_manual", on_change=on_object_storage_manual_change)
 
 st.subheader("Domain")
-d1, d2 = st.columns([3, 1])
-with d1:
-    st.text_input("Nama domain", placeholder="contoh: datalab.co.id", key="domain_name_input")
-with d2:
-    st.write("")
-    st.button("Tambah Domain", on_click=add_domain, use_container_width=True)
-
 selected_domain_action = st.session_state.get("domain_action_input", "Register")
+st.write("Jenis domain")
 action_cols = st.columns(3)
 for action_col, action in zip(action_cols, DOMAIN_ACTION_OPTIONS):
     action_col.button(
@@ -463,6 +457,13 @@ for action_col, action in zip(action_cols, DOMAIN_ACTION_OPTIONS):
         use_container_width=True,
     )
 st.caption(f"Jenis domain dipilih: {selected_domain_action}")
+
+d1, d2 = st.columns([3, 1])
+with d1:
+    st.text_input("Nama domain", placeholder="contoh: datalab.co.id", key="domain_name_input")
+with d2:
+    st.write("")
+    st.button("Tambah Domain", on_click=add_domain, use_container_width=True)
 
 domains = [normalize_domain_entry(domain) for domain in st.session_state.get("domains", [])]
 st.session_state["domains"] = domains
@@ -520,21 +521,17 @@ st.caption(
     f"(~Rp {OBJECT_STORAGE_PER_GB_HOUR}/GB/jam) | Domain mengikuti ekstensi dan jenis domain yang dipilih."
 )
 
-domain_detail_lines = "\n".join(
-    f"    - Domain {domain['name']} ({domain['action']}): Rp {domain['period_price']:,}{unit_label}"
-    for domain in domain_cost_items
-) or f"    - Domain: Rp 0{unit_label}"
-st.markdown(
-    f"""
-    **Rincian biaya:**
-    - VPS dasar: Rp {int(base_price):,}{unit_label}
-    - Object storage: Rp {int(object_storage_price):,}{unit_label}
-{domain_detail_lines}
-    - Subtotal pra-pajak: Rp {int(pre_tax_subtotal):,}{unit_label}
-    - Monitoring 4%: Rp {int(monitoring_fee):,}{unit_label}
-    - PPN 11%: Rp {int(tax_fee):,}{unit_label}
-    """
-)
+st.markdown("**Rincian biaya:**")
+st.write(f"- VPS dasar: Rp {int(base_price):,}{unit_label}")
+st.write(f"- Object storage: Rp {int(object_storage_price):,}{unit_label}")
+if domain_cost_items:
+    for domain in domain_cost_items:
+        st.write(f"- Domain {domain['name']} ({domain['action']}): Rp {domain['period_price']:,}{unit_label}")
+else:
+    st.write(f"- Domain: Rp 0{unit_label}")
+st.write(f"- Subtotal pra-pajak: Rp {int(pre_tax_subtotal):,}{unit_label}")
+st.write(f"- Monitoring 4%: Rp {int(monitoring_fee):,}{unit_label}")
+st.write(f"- PPN 11%: Rp {int(tax_fee):,}{unit_label}")
 
 st.divider()
 # Dedicated collapsible explanation under estimator
