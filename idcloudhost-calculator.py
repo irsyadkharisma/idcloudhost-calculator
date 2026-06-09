@@ -246,8 +246,11 @@ def on_object_storage_manual_change():
     auto_switch_to_custom()
     st.session_state["object_storage_gb"] = st.session_state["object_storage_gb_manual"]
 
-def set_domain_action(action: str):
-    st.session_state["domain_action_input"] = action
+def set_domain_action(index: int, action: str):
+    domains = [normalize_domain_entry(domain) for domain in st.session_state.get("domains", [])]
+    if 0 <= index < len(domains):
+        domains[index] = normalize_domain_entry({"name": domains[index]["name"], "action": action})
+        st.session_state["domains"] = domains
 
 def add_domain():
     domain_name = st.session_state.get("domain_name_input", "").strip()
@@ -255,8 +258,7 @@ def add_domain():
         return
 
     domains = st.session_state.setdefault("domains", [])
-    action = st.session_state.get("domain_action_input", "Register")
-    domain_entry = normalize_domain_entry({"name": domain_name, "action": action})
+    domain_entry = normalize_domain_entry({"name": domain_name, "action": "Register"})
     if not any(normalize_domain_entry(existing)["name"].lower() == domain_name.lower() for existing in domains):
         domains.append(domain_entry)
     st.session_state["domain_name_input"] = ""
@@ -397,10 +399,6 @@ if "users_per_hour" not in st.session_state:
     st.session_state["object_storage_gb_manual"] = 100
     st.session_state["manual_override"] = False
     st.session_state["domains"] = []
-    st.session_state["domain_action_input"] = "Register"
-
-if "domain_action_input" not in st.session_state:
-    st.session_state["domain_action_input"] = "Register"
 
 with st.expander("📁 1. Pilih Preset Infrastruktur", expanded=True):
     st.markdown('<div class="preset-radio">', unsafe_allow_html=True)
@@ -444,20 +442,6 @@ if st.session_state.manual_override:
         st.number_input("Object Storage (manual)", min_value=0, max_value=10000, step=10, key="object_storage_gb_manual", on_change=on_object_storage_manual_change)
 
 st.subheader("Domain")
-selected_domain_action = st.session_state.get("domain_action_input", "Register")
-st.write("Jenis domain")
-action_cols = st.columns(3)
-for action_col, action in zip(action_cols, DOMAIN_ACTION_OPTIONS):
-    action_col.button(
-        action,
-        key=f"domain_action_{action.lower()}",
-        on_click=set_domain_action,
-        args=(action,),
-        type="primary" if selected_domain_action == action else "secondary",
-        use_container_width=True,
-    )
-st.caption(f"Jenis domain dipilih: {selected_domain_action}")
-
 d1, d2 = st.columns([3, 1])
 with d1:
     st.text_input("Nama domain", placeholder="contoh: datalab.co.id", key="domain_name_input")
@@ -468,12 +452,21 @@ with d2:
 domains = [normalize_domain_entry(domain) for domain in st.session_state.get("domains", [])]
 st.session_state["domains"] = domains
 if domains:
+    st.caption("Pilih Register, Renewal, atau Transfer untuk masing-masing domain.")
     for index, domain in enumerate(domains):
-        row_cols = st.columns([3, 2, 2, 1])
+        row_cols = st.columns([2.2, 1, 1, 1, 1.4, 0.8])
         row_cols[0].write(domain["name"])
-        row_cols[1].write(domain["action"])
-        row_cols[2].write(f"Rp {domain['price_yearly']:,}/tahun")
-        row_cols[3].button(
+        for action_index, action in enumerate(DOMAIN_ACTION_OPTIONS, start=1):
+            row_cols[action_index].button(
+                action,
+                key=f"domain_{index}_{action.lower()}",
+                on_click=set_domain_action,
+                args=(index, action),
+                type="primary" if domain["action"] == action else "secondary",
+                use_container_width=True,
+            )
+        row_cols[4].write(f"Rp {domain['price_yearly']:,}/tahun")
+        row_cols[5].button(
             "Hapus",
             key=f"remove_domain_{index}",
             on_click=remove_domain,
