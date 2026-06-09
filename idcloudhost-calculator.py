@@ -93,15 +93,7 @@ def recommend_from_concurrency(concurrent: int) -> str:
 OBJECT_STORAGE_PER_GB_MONTH = 507
 OBJECT_STORAGE_PER_GB_HOUR = 0.694
 DEFAULT_DOMAIN_PRICE_YEARLY = 300_000
-DOMAIN_ACTION_OPTIONS = {
-    "Baru": "Register",
-    "Perpanjang": "Renewal",
-}
-DOMAIN_ACTION_LABELS = {
-    "Register": "Baru",
-    "Renewal": "Perpanjang",
-    "Transfer": "Transfer",
-}
+DOMAIN_ACTION_OPTIONS = ["Register", "Renewal", "Transfer"]
 DOMAIN_PRICES_YEARLY = {
     ".my.id": {"Register": 25_000, "Renewal": 25_000, "Transfer": 25_000},
     ".biz.id": {"Register": 55_000, "Renewal": 55_000, "Transfer": 55_000},
@@ -127,12 +119,21 @@ def get_domain_yearly_price(extension: str, action: str) -> int:
         return DEFAULT_DOMAIN_PRICE_YEARLY
     return DOMAIN_PRICES_YEARLY[extension].get(action, DEFAULT_DOMAIN_PRICE_YEARLY)
 
+def get_domain_period_price(domain: dict, billing_period: str) -> int:
+    yearly_price = int(domain.get("price_yearly", 0))
+    if billing_period == "Tahunan":
+        return yearly_price
+    return int(round(yearly_price / 12))
+
 def normalize_domain_entry(domain_entry):
     if isinstance(domain_entry, dict):
         domain_name = domain_entry.get("name", "").strip()
         action = domain_entry.get("action", "Register")
     else:
         domain_name = str(domain_entry).strip()
+        action = "Register"
+
+    if action not in DOMAIN_ACTION_OPTIONS:
         action = "Register"
 
     extension = get_domain_extension(domain_name)
@@ -251,8 +252,7 @@ def add_domain():
         return
 
     domains = st.session_state.setdefault("domains", [])
-    action_label = st.session_state.get("domain_action_input", "Baru")
-    action = DOMAIN_ACTION_OPTIONS.get(action_label, "Register")
+    action = st.session_state.get("domain_action_input", "Register")
     domain_entry = normalize_domain_entry({"name": domain_name, "action": action})
     if not any(normalize_domain_entry(existing)["name"].lower() == domain_name.lower() for existing in domains):
         domains.append(domain_entry)
@@ -335,14 +335,19 @@ def build_pdf_report(data: dict) -> bytes:
     row("Tipe CPU", data.get("cpu_type", "—"))
     domains = [normalize_domain_entry(domain) for domain in data.get("domains", [])]
     domain_label = ", ".join(
-        f"{domain['name']} ({DOMAIN_ACTION_LABELS.get(domain['action'], domain['action'])}, {domain['extension']})"
+        f"{domain['name']} ({domain['action']}, {domain['extension']})"
         for domain in domains
     ) if domains else "Tidak ada"
     row("Domain", domain_label)
 
     row("Biaya VPS Dasar", f"Rp {int(data.get('base_price', 0)):,}{data.get('unit_label', '')}")
     row("Biaya Object Storage", f"Rp {int(data.get('object_storage_price', 0)):,}{data.get('unit_label', '')}")
-    row("Biaya Domain", f"Rp {int(data.get('domain_price', 0)):,}{data.get('unit_label', '')}")
+    if domains:
+        for domain in domains:
+            domain_period_price = get_domain_period_price(domain, data.get("billing", "Bulanan"))
+            row(f"Domain {domain['name']}", f"Rp {domain_period_price:,}{data.get('unit_label', '')}")
+    else:
+        row("Biaya Domain", f"Rp {int(data.get('domain_price', 0)):,}{data.get('unit_label', '')}")
     row("Subtotal Pra-Pajak", f"Rp {int(data.get('pre_tax_subtotal', 0)):,}{data.get('unit_label', '')}")
     row("Monitoring (4%)", f"Rp {int(data.get('monitoring_fee', 0)):,}{data.get('unit_label', '')}")
     row("PPN (11%)", f"Rp {int(data.get('tax_fee', 0)):,}{data.get('unit_label', '')}")
@@ -436,7 +441,7 @@ d1, d2, d3 = st.columns([3, 2, 1])
 with d1:
     st.text_input("Nama domain", placeholder="contoh: datalab.co.id", key="domain_name_input")
 with d2:
-    st.radio("Jenis", list(DOMAIN_ACTION_OPTIONS.keys()), horizontal=True, key="domain_action_input")
+    st.segmented_control("Jenis", DOMAIN_ACTION_OPTIONS, default="Register", key="domain_action_input")
 with d3:
     st.write("")
     st.button("Tambah Domain", on_click=add_domain, use_container_width=True)
@@ -447,7 +452,7 @@ if domains:
     for index, domain in enumerate(domains):
         row_cols = st.columns([3, 2, 2, 1])
         row_cols[0].write(domain["name"])
-        row_cols[1].write(DOMAIN_ACTION_LABELS.get(domain["action"], domain["action"]))
+        row_cols[1].write(domain["action"])
         row_cols[2].write(f"Rp {domain['price_yearly']:,}/tahun")
         row_cols[3].button(
             "Hapus",
@@ -466,15 +471,19 @@ coef = cloud_vps_data[variant]
 base_price = calculate_cloud_vps(st.session_state.cpu, st.session_state.ram, st.session_state.storage, coef)
 unit_label = "/tahun" if billing == "Tahunan" else "/bulan"
 domains = [normalize_domain_entry(domain) for domain in st.session_state.get("domains", [])]
-domain_count = len(domains)
-domain_price_yearly = sum(domain["price_yearly"] for domain in domains)
 if billing == "Tahunan":
     base_price *= 12
     object_storage_price = int(round(st.session_state.object_storage_gb * OBJECT_STORAGE_PER_GB_MONTH * 12))
-    domain_price = domain_price_yearly
 else:
     object_storage_price = int(round(st.session_state.object_storage_gb * OBJECT_STORAGE_PER_GB_MONTH))
-    domain_price = int(round(domain_price_yearly / 12))
+domain_cost_items = [
+    {
+        **domain,
+        "period_price": get_domain_period_price(domain, billing),
+    }
+    for domain in domains
+]
+domain_price = sum(domain["period_price"] for domain in domain_cost_items)
 
 pre_tax_subtotal = base_price + object_storage_price + domain_price
 monitoring_fee = int(pre_tax_subtotal * 0.04)
@@ -493,12 +502,16 @@ st.caption(
     f"(~Rp {OBJECT_STORAGE_PER_GB_HOUR}/GB/jam) | Domain mengikuti ekstensi dan jenis domain yang dipilih."
 )
 
+domain_detail_lines = "\n".join(
+    f"    - Domain {domain['name']} ({domain['action']}): Rp {domain['period_price']:,}{unit_label}"
+    for domain in domain_cost_items
+) or f"    - Domain: Rp 0{unit_label}"
 st.markdown(
     f"""
     **Rincian biaya:**
     - VPS dasar: Rp {int(base_price):,}{unit_label}
     - Object storage: Rp {int(object_storage_price):,}{unit_label}
-    - Domain ({domain_count} domain): Rp {int(domain_price):,}{unit_label}
+{domain_detail_lines}
     - Subtotal pra-pajak: Rp {int(pre_tax_subtotal):,}{unit_label}
     - Monitoring 4%: Rp {int(monitoring_fee):,}{unit_label}
     - PPN 11%: Rp {int(tax_fee):,}{unit_label}
@@ -541,6 +554,7 @@ pdf_bytes = build_pdf_report({
     "storage": st.session_state.storage,
     "object_storage_gb": st.session_state.object_storage_gb,
     "domains": st.session_state.get("domains", []),
+    "billing": billing,
     "cpu_type": variant,
     "base_price": base_price,
     "object_storage_price": object_storage_price,
