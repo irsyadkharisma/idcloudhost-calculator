@@ -93,6 +93,7 @@ def recommend_from_concurrency(concurrent: int) -> str:
 OBJECT_STORAGE_PER_GB_MONTH = 507
 OBJECT_STORAGE_PER_GB_HOUR = 0.694
 DEFAULT_DOMAIN_PRICE_YEARLY = 300_000
+VPS_RESERVE_MONTHS_PER_YEAR = 2
 DOMAIN_ACTION_OPTIONS = ["Register", "Renewal", "Transfer"]
 DOMAIN_PRICES_YEARLY = {
     ".my.id": {"Register": 25_000, "Renewal": 25_000, "Transfer": 25_000},
@@ -525,11 +526,11 @@ monthly_base_price = calculate_cloud_vps(st.session_state.cpu, st.session_state.
 unit_label = "/tahun" if billing == "Tahunan" else "/bulan"
 domains = [normalize_domain_entry(domain) for domain in st.session_state.get("domains", [])]
 if billing == "Tahunan":
-    vps_reserve_price = monthly_base_price
+    vps_reserve_price = monthly_base_price * VPS_RESERVE_MONTHS_PER_YEAR
     base_price = (monthly_base_price * 12) + vps_reserve_price
     object_storage_price = int(round(st.session_state.object_storage_gb * OBJECT_STORAGE_PER_GB_MONTH * 12))
 else:
-    vps_reserve_price = int(round(monthly_base_price / 12))
+    vps_reserve_price = int(round(monthly_base_price * VPS_RESERVE_MONTHS_PER_YEAR / 12))
     base_price = monthly_base_price + vps_reserve_price
     object_storage_price = int(round(st.session_state.object_storage_gb * OBJECT_STORAGE_PER_GB_MONTH))
 domain_cost_items = [
@@ -556,7 +557,7 @@ st.markdown(f"""
 st.caption(
     f"Tarif Object Storage: Rp {OBJECT_STORAGE_PER_GB_MONTH:,}/GB/bulan "
     f"(~Rp {OBJECT_STORAGE_PER_GB_HOUR}/GB/jam) | Domain mengikuti ekstensi dan jenis domain yang dipilih. "
-    f"VPS dasar otomatis mencakup cadangan 1 bulan per tahun, diprorata untuk bulanan."
+    f"VPS dasar otomatis mencakup cadangan {VPS_RESERVE_MONTHS_PER_YEAR} bulan per tahun, diprorata untuk bulanan."
 )
 
 st.markdown("**Rincian biaya:**")
@@ -626,7 +627,6 @@ st.download_button(
     file_name=f"DLI_Estimasi_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
     mime="application/pdf",
 )
-
 
 
 
