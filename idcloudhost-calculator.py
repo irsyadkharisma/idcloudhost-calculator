@@ -454,10 +454,11 @@ st.session_state["domains"] = domains
 if domains:
     st.caption("Pilih Register, Renewal, atau Transfer untuk masing-masing domain.")
     for index, domain in enumerate(domains):
-        row_cols = st.columns([2.2, 1, 1, 1, 1.4, 0.8])
-        row_cols[0].write(domain["name"])
-        for action_index, action in enumerate(DOMAIN_ACTION_OPTIONS, start=1):
-            row_cols[action_index].button(
+        st.markdown(f"**{domain['name']}**")
+        st.caption(f"{domain['extension']} | {domain['action']} | Rp {domain['price_yearly']:,}/tahun")
+        action_cols = st.columns([1, 1, 1, 1])
+        for action_index, action in enumerate(DOMAIN_ACTION_OPTIONS):
+            action_cols[action_index].button(
                 action,
                 key=f"domain_{index}_{action.lower()}",
                 on_click=set_domain_action,
@@ -465,16 +466,16 @@ if domains:
                 type="primary" if domain["action"] == action else "secondary",
                 use_container_width=True,
             )
-        row_cols[4].write(f"Rp {domain['price_yearly']:,}/tahun")
-        row_cols[5].button(
+        action_cols[3].button(
             "Hapus",
             key=f"remove_domain_{index}",
             on_click=remove_domain,
             args=(index,),
             use_container_width=True,
         )
+        st.divider()
 else:
-    st.caption("Belum ada domain yang ditambahkan.")
+    st.caption("Belum ada domain yang ditambahkan. Tambahkan domain dulu, lalu pilih Register, Renewal, atau Transfer pada domain tersebut.")
 
 variant = st.radio("Tipe CPU", list(cloud_vps_data.keys()), key="variant")
 billing = st.radio("Periode", ["Bulanan", "Tahunan"], horizontal=True, key="billing")
