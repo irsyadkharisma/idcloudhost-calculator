@@ -557,7 +557,6 @@ st.markdown(f"""
 st.caption(
     f"Tarif Object Storage: Rp {OBJECT_STORAGE_PER_GB_MONTH:,}/GB/bulan "
     f"(~Rp {OBJECT_STORAGE_PER_GB_HOUR}/GB/jam) | Domain mengikuti ekstensi dan jenis domain yang dipilih. "
-    f"VPS dasar otomatis mencakup cadangan {VPS_RESERVE_MONTHS_PER_YEAR} bulan per tahun, diprorata untuk bulanan."
 )
 
 st.markdown("**Rincian biaya:**")
