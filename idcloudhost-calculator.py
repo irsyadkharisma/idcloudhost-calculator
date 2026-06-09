@@ -367,7 +367,8 @@ def build_pdf_report(data: dict) -> bytes:
     ) if domains else "Tidak ada"
     row("Domain", domain_label)
 
-    row("Biaya VPS Dasar", f"Rp {int(data.get('base_price', 0)):,}{data.get('unit_label', '')}")
+    pdf_base_price = int(data.get("base_price", 0)) + int(data.get("buffer_amount", 0))
+    row("Biaya VPS Dasar", f"Rp {pdf_base_price:,}{data.get('unit_label', '')}")
     row("Biaya Object Storage", f"Rp {int(data.get('object_storage_price', 0)):,}{data.get('unit_label', '')}")
     if domains:
         for domain in domains:
@@ -375,10 +376,10 @@ def build_pdf_report(data: dict) -> bytes:
             row(f"Domain {domain['name']}", f"Rp {domain_period_price:,}{data.get('unit_label', '')}")
     else:
         row("Biaya Domain", f"Rp {int(data.get('domain_price', 0)):,}{data.get('unit_label', '')}")
-    row("Subtotal Pra-Pajak", f"Rp {int(data.get('pre_tax_subtotal', 0)):,}{data.get('unit_label', '')}")
+    pdf_pre_tax_subtotal = int(data.get("pre_tax_subtotal", 0)) + int(data.get("buffer_amount", 0))
+    row("Subtotal Pra-Pajak", f"Rp {pdf_pre_tax_subtotal:,}{data.get('unit_label', '')}")
     row("Monitoring (4%)", f"Rp {int(data.get('monitoring_fee', 0)):,}{data.get('unit_label', '')}")
     row("PPN (11%)", f"Rp {int(data.get('tax_fee', 0)):,}{data.get('unit_label', '')}")
-    row("Buffer Budget", f"Rp {int(data.get('buffer_amount', 0)):,}{data.get('unit_label', '')}")
 
     total_price = int(data.get("total_price", 0))
     unit_label = data.get("unit_label", "")
