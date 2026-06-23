@@ -372,7 +372,6 @@ def build_pdf_report(data: dict) -> bytes:
     row("Biaya VPS Dasar", f"Rp {int(data.get('base_price', 0)):,}{data.get('unit_label', '')}")
     row("Buffer 2 Bulan", f"Rp {int(data.get('vps_buffer_price', 0)):,}{data.get('unit_label', '')}")
     row("Biaya Object Storage", f"Rp {int(data.get('object_storage_price', 0)):,}{data.get('unit_label', '')}")
-    row("Security Scan", f"Rp {int(data.get('security_scan_price', 0)):,}{data.get('unit_label', '')}")
     if domains:
         for domain in domains:
             domain_period_price = get_domain_period_price(domain, data.get("billing", "Bulanan"))
@@ -382,6 +381,7 @@ def build_pdf_report(data: dict) -> bytes:
     row("Subtotal Pra-Pajak", f"Rp {int(data.get('pre_tax_subtotal', 0)):,}{data.get('unit_label', '')}")
     row("Monitoring (4%)", f"Rp {int(data.get('monitoring_fee', 0)):,}{data.get('unit_label', '')}")
     row("PPN (11%)", f"Rp {int(data.get('tax_fee', 0)):,}{data.get('unit_label', '')}")
+    row("Security Scan", f"Rp {int(data.get('security_scan_price', 0)):,}{data.get('unit_label', '')}")
 
     total_price = int(data.get("total_price", 0))
     unit_label = data.get("unit_label", "")
@@ -547,10 +547,10 @@ domain_cost_items = [
 ]
 domain_price = sum(domain["period_price"] for domain in domain_cost_items)
 
-pre_tax_subtotal = base_price + vps_buffer_price + object_storage_price + security_scan_price + domain_price
+pre_tax_subtotal = base_price + vps_buffer_price + object_storage_price + domain_price
 monitoring_fee = int(pre_tax_subtotal * 0.04)
 tax_fee = int((pre_tax_subtotal + monitoring_fee) * 0.11)
-total_price = pre_tax_subtotal + monitoring_fee + tax_fee
+total_price = pre_tax_subtotal + monitoring_fee + tax_fee + security_scan_price
 
 st.markdown(f"""
     <div style='text-align:center; background:#f0f2f6; padding:20px; border-radius:10px;'>
@@ -570,7 +570,6 @@ st.markdown("**Rincian biaya:**")
 st.write(f"- VPS dasar: Rp {int(base_price):,}{unit_label}")
 st.write(f"- Buffer {VPS_RESERVE_MONTHS_PER_YEAR} bulan: Rp {int(vps_buffer_price):,}{unit_label}")
 st.write(f"- Object storage: Rp {int(object_storage_price):,}{unit_label}")
-st.write(f"- Security scan: Rp {int(security_scan_price):,}{unit_label}")
 if domain_cost_items:
     for domain in domain_cost_items:
         st.write(f"- Domain {domain['name']} ({domain['action']}): Rp {domain['period_price']:,}{unit_label}")
@@ -579,6 +578,7 @@ else:
 st.write(f"- Subtotal pra-pajak: Rp {int(pre_tax_subtotal):,}{unit_label}")
 st.write(f"- Monitoring 4%: Rp {int(monitoring_fee):,}{unit_label}")
 st.write(f"- PPN 11%: Rp {int(tax_fee):,}{unit_label}")
+st.write(f"- Security scan (fixed, non-pajak): Rp {int(security_scan_price):,}{unit_label}")
 
 st.divider()
 # Dedicated collapsible explanation under estimator
@@ -591,10 +591,10 @@ with st.expander("📐 Penjelasan Perhitungan", expanded=False):
     st.markdown("**Rumus biaya komponen:**")
     st.latex(r"Buffer_{server} = Biaya_{VPS\ bulanan} \times 2")
     st.latex(r"Biaya_{objek} = GB_{objek} \times 507")
-    st.latex(r"Biaya_{security} = 100000 \times Jumlah_{bulan}")
     st.latex(r"Biaya_{domain} = \sum Harga_{domain\ per\ ekstensi}")
-    st.latex(r"Subtotal = Biaya_{VPS} + Buffer_{server} + Biaya_{objek} + Biaya_{security} + Biaya_{domain}")
-    st.latex(r"Total = (Subtotal + 4\%\times Subtotal)\times(1 + 11\%)")
+    st.latex(r"Subtotal_{kena\ pajak} = Biaya_{VPS} + Buffer_{server} + Biaya_{objek} + Biaya_{domain}")
+    st.latex(r"Security_{scan} = 100000 \times Jumlah_{bulan}")
+    st.latex(r"Total = (Subtotal_{kena\ pajak} + 4\%\times Subtotal_{kena\ pajak})\times(1 + 11\%) + Security_{scan}")
 
     st.info("""
     **Parameter Acuan:**
@@ -638,5 +638,4 @@ st.download_button(
     file_name=f"DLI_Estimasi_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
     mime="application/pdf",
 )
-
 
