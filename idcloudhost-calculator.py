@@ -92,6 +92,7 @@ def recommend_from_concurrency(concurrent: int) -> str:
 # ----------------------------
 OBJECT_STORAGE_PER_GB_MONTH = 507
 OBJECT_STORAGE_PER_GB_HOUR = 0.694
+SECURITY_SCAN_PER_PROJECT_MONTH = 100_000
 DEFAULT_DOMAIN_PRICE_YEARLY = 300_000
 VPS_RESERVE_MONTHS_PER_YEAR = 2
 DOMAIN_ACTION_OPTIONS = ["Register", "Renewal", "Transfer"]
@@ -371,6 +372,7 @@ def build_pdf_report(data: dict) -> bytes:
     row("Biaya VPS Dasar", f"Rp {int(data.get('base_price', 0)):,}{data.get('unit_label', '')}")
     row("Buffer 2 Bulan", f"Rp {int(data.get('vps_buffer_price', 0)):,}{data.get('unit_label', '')}")
     row("Biaya Object Storage", f"Rp {int(data.get('object_storage_price', 0)):,}{data.get('unit_label', '')}")
+    row("Security Scan", f"Rp {int(data.get('security_scan_price', 0)):,}{data.get('unit_label', '')}")
     if domains:
         for domain in domains:
             domain_period_price = get_domain_period_price(domain, data.get("billing", "Bulanan"))
@@ -530,10 +532,12 @@ if billing == "Tahunan":
     base_price = monthly_base_price * 12
     vps_buffer_price = monthly_base_price * VPS_RESERVE_MONTHS_PER_YEAR
     object_storage_price = int(round(st.session_state.object_storage_gb * OBJECT_STORAGE_PER_GB_MONTH * 12))
+    security_scan_price = SECURITY_SCAN_PER_PROJECT_MONTH * 12
 else:
     base_price = monthly_base_price
     vps_buffer_price = int(round(monthly_base_price * VPS_RESERVE_MONTHS_PER_YEAR / 12))
     object_storage_price = int(round(st.session_state.object_storage_gb * OBJECT_STORAGE_PER_GB_MONTH))
+    security_scan_price = SECURITY_SCAN_PER_PROJECT_MONTH
 domain_cost_items = [
     {
         **domain,
@@ -543,7 +547,7 @@ domain_cost_items = [
 ]
 domain_price = sum(domain["period_price"] for domain in domain_cost_items)
 
-pre_tax_subtotal = base_price + vps_buffer_price + object_storage_price + domain_price
+pre_tax_subtotal = base_price + vps_buffer_price + object_storage_price + security_scan_price + domain_price
 monitoring_fee = int(pre_tax_subtotal * 0.04)
 tax_fee = int((pre_tax_subtotal + monitoring_fee) * 0.11)
 total_price = pre_tax_subtotal + monitoring_fee + tax_fee
@@ -557,7 +561,8 @@ st.markdown(f"""
 
 st.caption(
     f"Tarif Object Storage: Rp {OBJECT_STORAGE_PER_GB_MONTH:,}/GB/bulan "
-    f"(~Rp {OBJECT_STORAGE_PER_GB_HOUR}/GB/jam) | Domain mengikuti ekstensi dan jenis domain yang dipilih. "
+    f"(~Rp {OBJECT_STORAGE_PER_GB_HOUR}/GB/jam) | Security Scan: Rp {SECURITY_SCAN_PER_PROJECT_MONTH:,}/bulan/proyek. "
+    f"Domain mengikuti ekstensi dan jenis domain yang dipilih. "
     f"Buffer server {VPS_RESERVE_MONTHS_PER_YEAR} bulan dihitung dari biaya VPS bulanan."
 )
 
@@ -565,6 +570,7 @@ st.markdown("**Rincian biaya:**")
 st.write(f"- VPS dasar: Rp {int(base_price):,}{unit_label}")
 st.write(f"- Buffer {VPS_RESERVE_MONTHS_PER_YEAR} bulan: Rp {int(vps_buffer_price):,}{unit_label}")
 st.write(f"- Object storage: Rp {int(object_storage_price):,}{unit_label}")
+st.write(f"- Security scan: Rp {int(security_scan_price):,}{unit_label}")
 if domain_cost_items:
     for domain in domain_cost_items:
         st.write(f"- Domain {domain['name']} ({domain['action']}): Rp {domain['period_price']:,}{unit_label}")
@@ -585,8 +591,9 @@ with st.expander("📐 Penjelasan Perhitungan", expanded=False):
     st.markdown("**Rumus biaya komponen:**")
     st.latex(r"Buffer_{server} = Biaya_{VPS\ bulanan} \times 2")
     st.latex(r"Biaya_{objek} = GB_{objek} \times 507")
+    st.latex(r"Biaya_{security} = 100000 \times Jumlah_{bulan}")
     st.latex(r"Biaya_{domain} = \sum Harga_{domain\ per\ ekstensi}")
-    st.latex(r"Subtotal = Biaya_{VPS} + Buffer_{server} + Biaya_{objek} + Biaya_{domain}")
+    st.latex(r"Subtotal = Biaya_{VPS} + Buffer_{server} + Biaya_{objek} + Biaya_{security} + Biaya_{domain}")
     st.latex(r"Total = (Subtotal + 4\%\times Subtotal)\times(1 + 11\%)")
 
     st.info("""
@@ -616,6 +623,7 @@ pdf_bytes = build_pdf_report({
     "base_price": base_price,
     "vps_buffer_price": vps_buffer_price,
     "object_storage_price": object_storage_price,
+    "security_scan_price": security_scan_price,
     "domain_price": domain_price,
     "pre_tax_subtotal": pre_tax_subtotal,
     "monitoring_fee": monitoring_fee,
@@ -630,6 +638,5 @@ st.download_button(
     file_name=f"DLI_Estimasi_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
     mime="application/pdf",
 )
-
 
 
