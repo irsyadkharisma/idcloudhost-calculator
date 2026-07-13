@@ -381,7 +381,14 @@ def build_pdf_report(data: dict) -> bytes:
     row("Subtotal Pra-Pajak", f"Rp {int(data.get('pre_tax_subtotal', 0)):,}{data.get('unit_label', '')}")
     row("Monitoring (4%)", f"Rp {int(data.get('monitoring_fee', 0)):,}{data.get('unit_label', '')}")
     row("PPN (11%)", f"Rp {int(data.get('tax_fee', 0)):,}{data.get('unit_label', '')}")
-    row("Security Scan", f"Rp {int(data.get('security_scan_price', 0)):,}{data.get('unit_label', '')}")
+    if data.get("include_security_scan", True):
+        row(
+            "Security Scan",
+            f"Rp {int(data.get('security_scan_price', 0)):,}{data.get('unit_label', '')} "
+            f"(Rp {int(data.get('security_scan_monthly_price', 0)):,}/bulan)",
+        )
+    else:
+        row("Security Scan", "Tidak aktif")
 
     total_price = int(data.get("total_price", 0))
     unit_label = data.get("unit_label", "")
@@ -424,11 +431,19 @@ if "users_per_hour" not in st.session_state:
     st.session_state["storage_manual"] = PRESETS[0]["storage"]
     st.session_state["object_storage_gb_manual"] = 100
     st.session_state["manual_override"] = False
+    st.session_state["include_security_scan"] = True
+    st.session_state["security_scan_monthly_price"] = SECURITY_SCAN_PER_PROJECT_MONTH
     st.session_state["domains"] = []
     st.session_state["new_domain_action"] = "Register"
 
 if "new_domain_action" not in st.session_state:
     st.session_state["new_domain_action"] = "Register"
+
+if "include_security_scan" not in st.session_state:
+    st.session_state["include_security_scan"] = True
+
+if "security_scan_monthly_price" not in st.session_state:
+    st.session_state["security_scan_monthly_price"] = SECURITY_SCAN_PER_PROJECT_MONTH
 
 with st.expander("📁 1. Pilih Preset Infrastruktur", expanded=True):
     st.markdown('<div class="preset-radio">', unsafe_allow_html=True)
@@ -524,20 +539,38 @@ else:
 variant = st.radio("Tipe CPU", list(cloud_vps_data.keys()), key="variant")
 billing = st.radio("Periode", ["Bulanan", "Tahunan"], horizontal=True, key="billing")
 
+st.subheader("Security Scan")
+sec1, sec2 = st.columns([1, 1])
+with sec1:
+    st.toggle("Tambahkan security scan", key="include_security_scan")
+with sec2:
+    st.number_input(
+        "Biaya security scan per bulan",
+        min_value=0,
+        step=10_000,
+        key="security_scan_monthly_price",
+        disabled=not st.session_state.include_security_scan,
+    )
+
 coef = cloud_vps_data[variant]
 monthly_base_price = calculate_cloud_vps(st.session_state.cpu, st.session_state.ram, st.session_state.storage, coef)
 unit_label = "/tahun" if billing == "Tahunan" else "/bulan"
 domains = [normalize_domain_entry(domain) for domain in st.session_state.get("domains", [])]
+security_scan_monthly_price = (
+    int(st.session_state.security_scan_monthly_price)
+    if st.session_state.include_security_scan
+    else 0
+)
 if billing == "Tahunan":
     base_price = monthly_base_price * 12
     vps_buffer_price = monthly_base_price * VPS_RESERVE_MONTHS_PER_YEAR
     object_storage_price = int(round(st.session_state.object_storage_gb * OBJECT_STORAGE_PER_GB_MONTH * 12))
-    security_scan_price = SECURITY_SCAN_PER_PROJECT_MONTH * 12
+    security_scan_price = security_scan_monthly_price * 12
 else:
     base_price = monthly_base_price
     vps_buffer_price = int(round(monthly_base_price * VPS_RESERVE_MONTHS_PER_YEAR / 12))
     object_storage_price = int(round(st.session_state.object_storage_gb * OBJECT_STORAGE_PER_GB_MONTH))
-    security_scan_price = SECURITY_SCAN_PER_PROJECT_MONTH
+    security_scan_price = security_scan_monthly_price
 domain_cost_items = [
     {
         **domain,
@@ -561,7 +594,7 @@ st.markdown(f"""
 
 st.caption(
     f"Tarif Object Storage: Rp {OBJECT_STORAGE_PER_GB_MONTH:,}/GB/bulan "
-    f"(~Rp {OBJECT_STORAGE_PER_GB_HOUR}/GB/jam) | Security Scan: Rp {SECURITY_SCAN_PER_PROJECT_MONTH:,}/bulan/proyek. "
+    f"(~Rp {OBJECT_STORAGE_PER_GB_HOUR}/GB/jam) | Security Scan opsional: Rp {security_scan_monthly_price:,}/bulan/proyek. "
     f"Domain mengikuti ekstensi dan jenis domain yang dipilih. "
     f"Buffer server {VPS_RESERVE_MONTHS_PER_YEAR} bulan dihitung dari biaya VPS bulanan."
 )
@@ -578,7 +611,8 @@ else:
 st.write(f"- Subtotal pra-pajak: Rp {int(pre_tax_subtotal):,}{unit_label}")
 st.write(f"- Monitoring 4%: Rp {int(monitoring_fee):,}{unit_label}")
 st.write(f"- PPN 11%: Rp {int(tax_fee):,}{unit_label}")
-st.write(f"- Security scan (fixed, non-pajak): Rp {int(security_scan_price):,}{unit_label}")
+security_scan_label = "aktif" if st.session_state.include_security_scan else "tidak aktif"
+st.write(f"- Security scan ({security_scan_label}, non-pajak): Rp {int(security_scan_price):,}{unit_label}")
 
 st.divider()
 # Dedicated collapsible explanation under estimator
@@ -593,7 +627,7 @@ with st.expander("📐 Penjelasan Perhitungan", expanded=False):
     st.latex(r"Biaya_{objek} = GB_{objek} \times 507")
     st.latex(r"Biaya_{domain} = \sum Harga_{domain\ per\ ekstensi}")
     st.latex(r"Subtotal_{kena\ pajak} = Biaya_{VPS} + Buffer_{server} + Biaya_{objek} + Biaya_{domain}")
-    st.latex(r"Security_{scan} = 100000 \times Jumlah_{bulan}")
+    st.latex(r"Security_{scan} = Biaya_{security\ scan\ bulanan} \times Jumlah_{bulan}")
     st.latex(r"Total = (Subtotal_{kena\ pajak} + 4\%\times Subtotal_{kena\ pajak})\times(1 + 11\%) + Security_{scan}")
 
     st.info("""
@@ -623,6 +657,8 @@ pdf_bytes = build_pdf_report({
     "base_price": base_price,
     "vps_buffer_price": vps_buffer_price,
     "object_storage_price": object_storage_price,
+    "include_security_scan": st.session_state.include_security_scan,
+    "security_scan_monthly_price": security_scan_monthly_price,
     "security_scan_price": security_scan_price,
     "domain_price": domain_price,
     "pre_tax_subtotal": pre_tax_subtotal,
@@ -638,4 +674,3 @@ st.download_button(
     file_name=f"DLI_Estimasi_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
     mime="application/pdf",
 )
-
