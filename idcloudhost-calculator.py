@@ -95,6 +95,7 @@ OBJECT_STORAGE_PER_GB_HOUR = 0.694
 SECURITY_SCAN_PER_PROJECT_MONTH = 100_000
 DEFAULT_DOMAIN_PRICE_YEARLY = 300_000
 VPS_RESERVE_MONTHS_PER_YEAR = 2
+MONTHS_PER_YEAR = 12
 DOMAIN_ACTION_OPTIONS = ["Register", "Renewal", "Transfer"]
 DOMAIN_PRICES_YEARLY = {
     ".my.id": {"Register": 25_000, "Renewal": 25_000, "Transfer": 25_000},
@@ -139,11 +140,21 @@ def get_domain_yearly_price(extension: str, action: str) -> int:
         return DEFAULT_DOMAIN_PRICE_YEARLY
     return DOMAIN_PRICES_YEARLY[extension].get(action, DEFAULT_DOMAIN_PRICE_YEARLY)
 
-def get_domain_period_price(domain: dict, billing_period: str) -> int:
+def get_domain_period_price(domain: dict, duration_months: int) -> int:
     yearly_price = int(domain.get("price_yearly", 0))
-    if billing_period == "Tahunan":
-        return yearly_price
-    return int(round(yearly_price / 12))
+    return int(round(yearly_price * duration_months / MONTHS_PER_YEAR))
+
+def get_buffer_months(duration_months: int) -> float:
+    """Scale the two-month annual VPS buffer to the application duration."""
+    return duration_months * VPS_RESERVE_MONTHS_PER_YEAR / MONTHS_PER_YEAR
+
+def format_duration_months(months: float) -> str:
+    if months >= 1:
+        return f"{months:g} bulan"
+
+    weeks = months * 4
+    rounded_weeks = round(weeks, 1)
+    return f"{rounded_weeks:g} minggu"
 
 def normalize_domain_entry(domain_entry):
     if isinstance(domain_entry, dict):
@@ -362,6 +373,7 @@ def build_pdf_report(data: dict) -> bytes:
     row("Object Storage", f"{object_storage_gb} GB")
 
     row("Tipe CPU", data.get("cpu_type", "—"))
+    row("Durasi Aplikasi", f"{int(data.get('duration_months', 1))} bulan")
     domains = [normalize_domain_entry(domain) for domain in data.get("domains", [])]
     domain_label = ", ".join(
         f"{domain['name']} ({domain['action']}, {domain['extension']})"
@@ -370,11 +382,14 @@ def build_pdf_report(data: dict) -> bytes:
     row("Domain", domain_label)
 
     row("Biaya VPS Dasar", f"Rp {int(data.get('base_price', 0)):,}{data.get('unit_label', '')}")
-    row("Buffer 2 Bulan", f"Rp {int(data.get('vps_buffer_price', 0)):,}{data.get('unit_label', '')}")
+    row(
+        f"Buffer {data.get('buffer_duration_label', '—')}",
+        f"Rp {int(data.get('vps_buffer_price', 0)):,}{data.get('unit_label', '')}",
+    )
     row("Biaya Object Storage", f"Rp {int(data.get('object_storage_price', 0)):,}{data.get('unit_label', '')}")
     if domains:
         for domain in domains:
-            domain_period_price = get_domain_period_price(domain, data.get("billing", "Bulanan"))
+            domain_period_price = get_domain_period_price(domain, int(data.get("duration_months", 1)))
             row(f"Domain {domain['name']}", f"Rp {domain_period_price:,}{data.get('unit_label', '')}")
     else:
         row("Biaya Domain", f"Rp {int(data.get('domain_price', 0)):,}{data.get('unit_label', '')}")
@@ -444,6 +459,9 @@ if "include_security_scan" not in st.session_state:
 
 if "security_scan_monthly_price" not in st.session_state:
     st.session_state["security_scan_monthly_price"] = SECURITY_SCAN_PER_PROJECT_MONTH
+
+if "duration_months" not in st.session_state:
+    st.session_state["duration_months"] = 12
 
 with st.expander("📁 1. Pilih Preset Infrastruktur", expanded=True):
     st.markdown('<div class="preset-radio">', unsafe_allow_html=True)
@@ -537,7 +555,14 @@ else:
     st.caption("Belum ada domain yang ditambahkan. Tambahkan domain dulu, lalu pilih Register, Renewal, atau Transfer pada domain tersebut.")
 
 variant = st.radio("Tipe CPU", list(cloud_vps_data.keys()), key="variant")
-billing = st.radio("Periode", ["Bulanan", "Tahunan"], horizontal=True, key="billing")
+duration_months = st.number_input(
+    "Durasi aplikasi (bulan)",
+    min_value=1,
+    max_value=120,
+    step=1,
+    key="duration_months",
+    help="Semua biaya bulanan dan buffer akan disesuaikan dengan durasi ini.",
+)
 
 st.subheader("Security Scan")
 sec1, sec2 = st.columns([1, 1])
@@ -554,27 +579,26 @@ with sec2:
 
 coef = cloud_vps_data[variant]
 monthly_base_price = calculate_cloud_vps(st.session_state.cpu, st.session_state.ram, st.session_state.storage, coef)
-unit_label = "/tahun" if billing == "Tahunan" else "/bulan"
+duration_months = int(duration_months)
+buffer_months = get_buffer_months(duration_months)
+buffer_duration_label = format_duration_months(buffer_months)
+unit_label = f" ({duration_months} bulan)"
 domains = [normalize_domain_entry(domain) for domain in st.session_state.get("domains", [])]
 security_scan_monthly_price = (
     int(st.session_state.security_scan_monthly_price)
     if st.session_state.include_security_scan
     else 0
 )
-if billing == "Tahunan":
-    base_price = monthly_base_price * 12
-    vps_buffer_price = monthly_base_price * VPS_RESERVE_MONTHS_PER_YEAR
-    object_storage_price = int(round(st.session_state.object_storage_gb * OBJECT_STORAGE_PER_GB_MONTH * 12))
-    security_scan_price = security_scan_monthly_price * 12
-else:
-    base_price = monthly_base_price
-    vps_buffer_price = int(round(monthly_base_price * VPS_RESERVE_MONTHS_PER_YEAR / 12))
-    object_storage_price = int(round(st.session_state.object_storage_gb * OBJECT_STORAGE_PER_GB_MONTH))
-    security_scan_price = security_scan_monthly_price
+base_price = monthly_base_price * duration_months
+vps_buffer_price = int(round(monthly_base_price * buffer_months))
+object_storage_price = int(round(
+    st.session_state.object_storage_gb * OBJECT_STORAGE_PER_GB_MONTH * duration_months
+))
+security_scan_price = security_scan_monthly_price * duration_months
 domain_cost_items = [
     {
         **domain,
-        "period_price": get_domain_period_price(domain, billing),
+        "period_price": get_domain_period_price(domain, duration_months),
     }
     for domain in domains
 ]
@@ -596,12 +620,13 @@ st.caption(
     f"Tarif Object Storage: Rp {OBJECT_STORAGE_PER_GB_MONTH:,}/GB/bulan "
     f"(~Rp {OBJECT_STORAGE_PER_GB_HOUR}/GB/jam) | Security Scan opsional: Rp {security_scan_monthly_price:,}/bulan/proyek. "
     f"Domain mengikuti ekstensi dan jenis domain yang dipilih. "
-    f"Buffer server {VPS_RESERVE_MONTHS_PER_YEAR} bulan dihitung dari biaya VPS bulanan."
+    f"Buffer server {buffer_duration_label} dihitung proporsional dari durasi aplikasi "
+    f"({VPS_RESERVE_MONTHS_PER_YEAR} bulan buffer per tahun)."
 )
 
 st.markdown("**Rincian biaya:**")
 st.write(f"- VPS dasar: Rp {int(base_price):,}{unit_label}")
-st.write(f"- Buffer {VPS_RESERVE_MONTHS_PER_YEAR} bulan: Rp {int(vps_buffer_price):,}{unit_label}")
+st.write(f"- Buffer {buffer_duration_label}: Rp {int(vps_buffer_price):,}{unit_label}")
 st.write(f"- Object storage: Rp {int(object_storage_price):,}{unit_label}")
 if domain_cost_items:
     for domain in domain_cost_items:
@@ -623,8 +648,9 @@ with st.expander("📐 Penjelasan Perhitungan", expanded=False):
     st.markdown("**Rumus Concurrent Users (CU):**")
     st.latex(r"CU = \frac{\text{User per Jam} \times \text{Durasi Sesi (detik)}}{3600}")
     st.markdown("**Rumus biaya komponen:**")
-    st.latex(r"Buffer_{server} = Biaya_{VPS\ bulanan} \times 2")
-    st.latex(r"Biaya_{objek} = GB_{objek} \times 507")
+    st.latex(r"Bulan_{buffer} = Jumlah_{bulan} \times \frac{2}{12}")
+    st.latex(r"Buffer_{server} = Biaya_{VPS\ bulanan} \times Bulan_{buffer}")
+    st.latex(r"Biaya_{objek} = GB_{objek} \times 507 \times Jumlah_{bulan}")
     st.latex(r"Biaya_{domain} = \sum Harga_{domain\ per\ ekstensi}")
     st.latex(r"Subtotal_{kena\ pajak} = Biaya_{VPS} + Buffer_{server} + Biaya_{objek} + Biaya_{domain}")
     st.latex(r"Security_{scan} = Biaya_{security\ scan\ bulanan} \times Jumlah_{bulan}")
@@ -652,7 +678,8 @@ pdf_bytes = build_pdf_report({
     "storage": st.session_state.storage,
     "object_storage_gb": st.session_state.object_storage_gb,
     "domains": st.session_state.get("domains", []),
-    "billing": billing,
+    "duration_months": duration_months,
+    "buffer_duration_label": buffer_duration_label,
     "cpu_type": variant,
     "base_price": base_price,
     "vps_buffer_price": vps_buffer_price,
