@@ -382,10 +382,13 @@ def build_pdf_report(data: dict) -> bytes:
     row("Domain", domain_label)
 
     row("Biaya VPS Dasar", f"Rp {int(data.get('base_price', 0)):,}{data.get('unit_label', '')}")
-    row(
-        f"Buffer {data.get('buffer_duration_label', '—')}",
-        f"Rp {int(data.get('vps_buffer_price', 0)):,}{data.get('unit_label', '')}",
-    )
+    if data.get("include_vps_buffer", True):
+        row(
+            f"Buffer {data.get('buffer_duration_label', '—')}",
+            f"Rp {int(data.get('vps_buffer_price', 0)):,}{data.get('unit_label', '')}",
+        )
+    else:
+        row("Buffer Server", "Tidak aktif")
     row("Biaya Object Storage", f"Rp {int(data.get('object_storage_price', 0)):,}{data.get('unit_label', '')}")
     if domains:
         for domain in domains:
@@ -446,6 +449,7 @@ if "users_per_hour" not in st.session_state:
     st.session_state["storage_manual"] = PRESETS[0]["storage"]
     st.session_state["object_storage_gb_manual"] = 100
     st.session_state["manual_override"] = False
+    st.session_state["include_vps_buffer"] = True
     st.session_state["include_security_scan"] = True
     st.session_state["security_scan_monthly_price"] = SECURITY_SCAN_PER_PROJECT_MONTH
     st.session_state["domains"] = []
@@ -462,6 +466,9 @@ if "security_scan_monthly_price" not in st.session_state:
 
 if "duration_months" not in st.session_state:
     st.session_state["duration_months"] = 12
+
+if "include_vps_buffer" not in st.session_state:
+    st.session_state["include_vps_buffer"] = True
 
 with st.expander("📁 1. Pilih Preset Infrastruktur", expanded=True):
     st.markdown('<div class="preset-radio">', unsafe_allow_html=True)
@@ -564,6 +571,13 @@ duration_months = st.number_input(
     help="Semua biaya bulanan dan buffer akan disesuaikan dengan durasi ini.",
 )
 
+st.subheader("Buffer Server")
+st.toggle(
+    "Tambahkan buffer server",
+    key="include_vps_buffer",
+    help="Jika aktif, buffer dihitung proporsional sebesar 2 bulan untuk setiap 12 bulan durasi aplikasi.",
+)
+
 st.subheader("Security Scan")
 sec1, sec2 = st.columns([1, 1])
 with sec1:
@@ -590,7 +604,11 @@ security_scan_monthly_price = (
     else 0
 )
 base_price = monthly_base_price * duration_months
-vps_buffer_price = int(round(monthly_base_price * buffer_months))
+vps_buffer_price = (
+    int(round(monthly_base_price * buffer_months))
+    if st.session_state.include_vps_buffer
+    else 0
+)
 object_storage_price = int(round(
     st.session_state.object_storage_gb * OBJECT_STORAGE_PER_GB_MONTH * duration_months
 ))
@@ -620,13 +638,20 @@ st.caption(
     f"Tarif Object Storage: Rp {OBJECT_STORAGE_PER_GB_MONTH:,}/GB/bulan "
     f"(~Rp {OBJECT_STORAGE_PER_GB_HOUR}/GB/jam) | Security Scan opsional: Rp {security_scan_monthly_price:,}/bulan/proyek. "
     f"Domain mengikuti ekstensi dan jenis domain yang dipilih. "
-    f"Buffer server {buffer_duration_label} dihitung proporsional dari durasi aplikasi "
-    f"({VPS_RESERVE_MONTHS_PER_YEAR} bulan buffer per tahun)."
+    + (
+        f"Buffer server {buffer_duration_label} dihitung proporsional dari durasi aplikasi "
+        f"({VPS_RESERVE_MONTHS_PER_YEAR} bulan buffer per tahun)."
+        if st.session_state.include_vps_buffer
+        else "Buffer server tidak aktif."
+    )
 )
 
 st.markdown("**Rincian biaya:**")
 st.write(f"- VPS dasar: Rp {int(base_price):,}{unit_label}")
-st.write(f"- Buffer {buffer_duration_label}: Rp {int(vps_buffer_price):,}{unit_label}")
+if st.session_state.include_vps_buffer:
+    st.write(f"- Buffer {buffer_duration_label}: Rp {int(vps_buffer_price):,}{unit_label}")
+else:
+    st.write("- Buffer server: tidak aktif")
 st.write(f"- Object storage: Rp {int(object_storage_price):,}{unit_label}")
 if domain_cost_items:
     for domain in domain_cost_items:
@@ -679,6 +704,7 @@ pdf_bytes = build_pdf_report({
     "object_storage_gb": st.session_state.object_storage_gb,
     "domains": st.session_state.get("domains", []),
     "duration_months": duration_months,
+    "include_vps_buffer": st.session_state.include_vps_buffer,
     "buffer_duration_label": buffer_duration_label,
     "cpu_type": variant,
     "base_price": base_price,
